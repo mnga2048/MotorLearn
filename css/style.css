@@ -1,0 +1,417 @@
+/* ====== 基础重置与主题变量 ====== */
+:root {
+  --primary: #2563eb;
+  --primary-light: #3b82f6;
+  --primary-dark: #1d4ed8;
+  --accent-green: #10b981;
+  --accent-orange: #f59e0b;
+  --accent-red: #ef4444;
+  --accent-purple: #8b5cf6;
+  --accent-cyan: #06b6d4;
+  --sidebar-width: 16rem;
+}
+
+/* ====== 滚动条美化 ====== */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+.dark ::-webkit-scrollbar-thumb { background: #475569; }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+/* ====== 侧边栏 ====== */
+#sidebar::-webkit-scrollbar { width: 4px; }
+
+.nav-section-title {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #9ca3af;
+  padding: 0.75rem 0.75rem 0.375rem;
+}
+.dark .nav-section-title { color: #6b7280; }
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  color: #4b5563;
+  cursor: pointer;
+  transition: all 0.15s;
+  text-decoration: none;
+}
+.dark .nav-item { color: #d1d5db; }
+.nav-item:hover { background-color: #f3f4f6; color: #1f2937; }
+.dark .nav-item:hover { background-color: #1f2937; color: #f9fafb; }
+.nav-item.active { background-color: #eff6ff; color: var(--primary); font-weight: 500; }
+.dark .nav-item.active { background-color: #1e3a5f; color: #60a5fa; }
+
+.nav-item .nav-icon { width: 1.25rem; height: 1.25rem; flex-shrink: 0; }
+.nav-item .nav-badge {
+  margin-left: auto;
+  font-size: 0.65rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 9999px;
+  font-weight: 600;
+}
+.badge-beginner { background-color: #dcfce7; color: #166534; }
+.dark .badge-beginner { background-color: #14532d; color: #86efac; }
+.badge-advanced { background-color: #dbeafe; color: #1e40af; }
+.dark .badge-advanced { background-color: #1e3a5f; color: #93c5fd; }
+.badge-tool { background-color: #fef3c7; color: #92400e; }
+.dark .badge-tool { background-color: #451a03; color: #fcd34d; }
+
+/* ====== 页面内容 ====== */
+.page-hero {
+  padding: 2rem 0 1.5rem;
+  border-bottom: 1px solid #e5e7eb;
+  margin-bottom: 2rem;
+}
+.dark .page-hero { border-color: #374151; }
+
+.page-hero h1 {
+  font-size: 1.875rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+  line-height: 1.2;
+}
+.page-hero p {
+  color: #6b7280;
+  font-size: 1rem;
+  max-width: 48rem;
+}
+
+/* 知识卡片 */
+.knowledge-card {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  margin-bottom: 1rem;
+  transition: all 0.2s;
+}
+.dark .knowledge-card {
+  background: #111827;
+  border-color: #374151;
+}
+.knowledge-card:hover {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  border-color: #bfdbfe;
+}
+.dark .knowledge-card:hover {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  border-color: #1e40af;
+}
+.knowledge-card.completed {
+  border-left: 3px solid var(--accent-green);
+}
+.knowledge-card.learning {
+  border-left: 3px solid var(--accent-orange);
+}
+
+.knowledge-card h3 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.knowledge-card .card-desc {
+  color: #6b7280;
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+
+.knowledge-card .card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  margin-top: 0.75rem;
+}
+.card-tag {
+  font-size: 0.7rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 9999px;
+  background: #f3f4f6;
+  color: #4b5563;
+}
+.dark .card-tag {
+  background: #1f2937;
+  color: #d1d5db;
+}
+
+/* 状态按钮 */
+.status-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  padding: 0.25rem 0.625rem;
+  border-radius: 0.375rem;
+  border: 1px solid #d1d5db;
+  background: white;
+  cursor: pointer;
+  transition: all 0.15s;
+  color: #6b7280;
+}
+.dark .status-btn {
+  border-color: #4b5563;
+  background: #1f2937;
+  color: #9ca3af;
+}
+.status-btn:hover { border-color: var(--primary); color: var(--primary); }
+.status-btn.status-completed { border-color: var(--accent-green); color: var(--accent-green); background: #ecfdf5; }
+.dark .status-btn.status-completed { background: #064e3b; }
+.status-btn.status-learning { border-color: var(--accent-orange); color: var(--accent-orange); background: #fffbeb; }
+.dark .status-btn.status-learning { background: #451a03; }
+
+/* ====== 首页卡片 ====== */
+.home-card {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 1rem;
+  padding: 1.5rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-decoration: none;
+  color: inherit;
+  display: block;
+}
+.dark .home-card { background: #111827; border-color: #374151; }
+.home-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+  border-color: var(--primary-light);
+}
+.dark .home-card:hover { box-shadow: 0 8px 25px rgba(0,0,0,0.4); }
+
+.home-card .card-icon {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1rem;
+  font-size: 1.5rem;
+}
+
+/* ====== 对比表格 ====== */
+.compare-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.875rem;
+  border-radius: 0.75rem;
+  overflow: hidden;
+  border: 1px solid #e5e7eb;
+}
+.dark .compare-table { border-color: #374151; }
+.compare-table th {
+  background: #f9fafb;
+  font-weight: 600;
+  text-align: left;
+  padding: 0.75rem 1rem;
+  border-bottom: 2px solid #e5e7eb;
+}
+.dark .compare-table th { background: #1f2937; border-color: #374151; }
+.compare-table td {
+  padding: 0.625rem 1rem;
+  border-bottom: 1px solid #f3f4f6;
+}
+.dark .compare-table td { border-color: #1f2937; }
+.compare-table tr:hover td { background: #f9fafb; }
+.dark .compare-table tr:hover td { background: #1e293b; }
+
+/* ====== 公式块 ====== */
+.formula-block {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  padding: 1rem 1.5rem;
+  margin: 1rem 0;
+  text-align: center;
+  overflow-x: auto;
+}
+.dark .formula-block { background: #0f172a; border-color: #1e293b; }
+
+/* ====== 代码块 ====== */
+.code-block {
+  background: #1e293b;
+  color: #e2e8f0;
+  border-radius: 0.5rem;
+  padding: 1rem 1.25rem;
+  font-family: 'Fira Code', 'Consolas', monospace;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  overflow-x: auto;
+  margin: 0.75rem 0;
+}
+.code-block .code-comment { color: #64748b; }
+.code-block .code-keyword { color: #c084fc; }
+.code-block .code-string { color: #34d399; }
+.code-block .code-func { color: #60a5fa; }
+
+/* ====== 信息提示框 ====== */
+.info-box {
+  padding: 1rem 1.25rem;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  margin: 1rem 0;
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+.info-box.tip { background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; }
+.dark .info-box.tip { background: #064e3b; border-color: #065f46; }
+.info-box.warning { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; }
+.dark .info-box.warning { background: #451a03; border-color: #78350f; }
+.info-box.info { background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; }
+.dark .info-box.info { background: #1e3a5f; border-color: #1d4ed8; }
+
+/* ====== 手风琴 ====== */
+.accordion-item { border: 1px solid #e5e7eb; border-radius: 0.5rem; margin-bottom: 0.5rem; overflow: hidden; }
+.dark .accordion-item { border-color: #374151; }
+.accordion-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.875rem 1rem;
+  background: white;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  border: none;
+  color: inherit;
+}
+.dark .accordion-header { background: #111827; }
+.accordion-header:hover { background: #f9fafb; }
+.dark .accordion-header:hover { background: #1f2937; }
+.accordion-header svg { transition: transform 0.2s; }
+.accordion-header.open svg { transform: rotate(180deg); }
+.accordion-body {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease;
+}
+.accordion-body.open { max-height: 2000px; }
+.accordion-body-inner { padding: 0 1rem 1rem; font-size: 0.875rem; color: #4b5563; line-height: 1.7; }
+.dark .accordion-body-inner { color: #d1d5db; }
+
+/* ====== 步骤列表 ====== */
+.step-list { counter-reset: steps; }
+.step-item {
+  counter-increment: steps;
+  display: flex;
+  gap: 1rem;
+  padding: 1rem 0;
+  border-bottom: 1px solid #f3f4f6;
+}
+.dark .step-item { border-color: #1f2937; }
+.step-item::before {
+  content: counter(steps);
+  flex-shrink: 0;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: var(--primary);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+/* ====== 计算器 ====== */
+.calc-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-end;
+  margin-bottom: 1rem;
+}
+.calc-field {
+  flex: 1;
+  min-width: 120px;
+}
+.calc-field label {
+  display: block;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: #6b7280;
+  margin-bottom: 0.25rem;
+}
+.calc-field input, .calc-field select {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  background: white;
+}
+.dark .calc-field input, .dark .calc-field select { background: #1f2937; border-color: #4b5563; color: #f3f4f6; }
+.calc-result {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 0.5rem;
+  padding: 1rem;
+  margin-top: 0.5rem;
+}
+.dark .calc-result { background: #1e3a5f; border-color: #1d4ed8; }
+
+/* ====== 响应式 ====== */
+@media (max-width: 1024px) {
+  #sidebar { z-index: 40; }
+}
+
+/* ====== 动画 ====== */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.fade-in { animation: fadeIn 0.3s ease-out; }
+
+/* ====== 图表容器 ====== */
+.chart-container {
+  width: 100%;
+  height: 400px;
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+.chart-container-lg { height: 500px; }
+
+/* ====== 标签页 ====== */
+.tab-nav {
+  display: flex;
+  gap: 0.25rem;
+  border-bottom: 2px solid #e5e7eb;
+  margin-bottom: 1rem;
+  overflow-x: auto;
+}
+.dark .tab-nav { border-color: #374151; }
+.tab-btn {
+  padding: 0.625rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #6b7280;
+  background: none;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  transition: all 0.15s;
+}
+.dark .tab-btn { color: #9ca3af; }
+.tab-btn:hover { color: var(--primary); }
+.tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; animation: fadeIn 0.2s ease; }
