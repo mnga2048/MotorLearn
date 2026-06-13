@@ -1235,6 +1235,166 @@ GND  --> GND     (STM32与A4988必须共地!)</div>
 }</div>
           <div class="info-box tip mt-3"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg><div><strong>注意事项</strong>：① STM32 GND与A4988 GND必须连接（共地）。② A4988上MS1/MS2/MS3全拉高=1/16细分。③ Vref电位器用万用表调至0.96V（对应1.2A限制）。④ 高速启动可能丢步，应做加减速。</div></div>
         `},
+        { title: '加减速曲线（梯形与S曲线）', content: `
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-3">
+            上面的代码用固定 <code>step_delay</code> 匀速运行，这在<strong>启动瞬间</strong>会有大问题：
+            电机从静止突然要求高速旋转，转子惯性跟不上磁场切换 → <strong>丢步</strong>（实际走的步数少于发出的脉冲数，位置出错）。
+            停止时同理，会<strong>过冲</strong>。解决办法是<strong>加减速曲线</strong>：起步慢、中间快、结尾慢。
+          </p>
+
+          <h4 class="font-medium mt-4 mb-2">两种主流曲线</h4>
+          <div class="overflow-x-auto mb-3"><table class="compare-table">
+            <thead><tr><th>曲线</th><th>速度形状</th><th>加速度</th><th>适用场景</th></tr></thead>
+            <tbody>
+              <tr><td class="font-medium">梯形</td><td>梯形（加速-匀速-减速）</td><td>突变（有冲击）</td><td>简单场景、低负载</td></tr>
+              <tr><td class="font-medium">S曲线</td><td>S形平滑过渡</td><td>连续变化（无冲击）</td><td>高精度、机械臂、CNC</td></tr>
+            </tbody>
+          </table></div>
+
+          <div class="formula-block">
+            $\\text{步间延时} = \\frac{1}{\\text{当前速度(步/秒)}} \\times 10^6 \\,(\\mu s)$
+            <div class="text-sm text-gray-500 mt-2">关键：每个脉冲的间隔随当前位置变化，而非固定</div>
+          </div>
+
+          <div class="code-block"><span class="code-comment">/* 梯形加减速：离散化实现
+ * 思路：把总步数分成加速段、匀速段、减速段
+ *       每一步的延时按当前速度重新计算 */</span>
+<span class="code-keyword">typedef struct</span> {
+  <span class="code-keyword">uint32_t</span> total_steps;    <span class="code-comment">// 总步数</span>
+  <span class="code-keyword">uint32_t</span> accel_steps;     <span class="code-comment">// 加速段步数（通常 = 减速段）</span>
+  <span class="code-keyword">uint32_t</span> cruise_steps;    <span class="code-comment">// 匀速段步数 = total - 2×accel</span>
+  <span class="code-keyword">uint32_t</span> min_delay;       <span class="code-comment">// 最高速对应的最小延时(us)，如100</span>
+  <span class="code-keyword">uint32_t</span> max_delay;       <span class="code-comment">// 起步最大延时(us)，如2000</span>
+} Trapezoid_t;
+
+<span class="code-comment">/* 计算第 n 步的延时（梯形曲线）
+ * n: 当前已走的步数(0起) */</span>
+<span class="code-keyword">uint32_t</span> <span class="code-func">Trap_StepDelay</span>(<span class="code-keyword">const</span> Trapezoid_t *t, <span class="code-keyword">uint32_t</span> n) {
+  <span class="code-keyword">uint32_t</span> decel_start = t->total_steps - t->accel_steps;
+  <span class="code-keyword">if</span> (n &lt; t->accel_steps) {
+    <span class="code-comment">// 加速段：线性从 max_delay 减到 min_delay</span>
+    <span class="code-keyword">return</span> t->max_delay
+         - (t->max_delay - t->min_delay) * n / t->accel_steps;
+  } <span class="code-keyword">else if</span> (n &lt; decel_start) {
+    <span class="code-comment">// 匀速段</span>
+    <span class="code-keyword">return</span> t->min_delay;
+  } <span class="code-keyword">else</span> {
+    <span class="code-comment">// 减速段：线性从 min_delay 增到 max_delay</span>
+    <span class="code-keyword">uint32_t</span> d = n - decel_start;
+    <span class="code-keyword">return</span> t->min_delay
+         + (t->max_delay - t->min_delay) * d / t->accel_steps;
+  }
+}
+
+<span class="code-comment">/* 带加减速的运动：替代上面的 Stepper_MoveSteps */</span>
+<span class="code-keyword">void</span> <span class="code-func">Stepper_MoveRamped</span>(StepperMotor_t *m, <span class="code-keyword">int32_t</span> steps,
+                          <span class="code-keyword">uint32_t</span> accel_steps) {
+  Trapezoid_t t;
+  t.total_steps  = (steps &gt;= <span class="code-number">0</span>) ? steps : -steps;
+  t.accel_steps  = accel_steps;
+  t.cruise_steps = (t.total_steps &gt; <span class="code-number">2</span>*accel_steps)
+                 ? t.total_steps - <span class="code-number">2</span>*accel_steps : <span class="code-number">0</span>;
+  t.min_delay = <span class="code-number">100</span>;     <span class="code-comment">// 最高速</span>
+  t.max_delay = <span class="code-number">2000</span>;    <span class="code-comment">// 起步速</span>
+
+  <span class="code-keyword">for</span> (<span class="code-keyword">uint32_t</span> n = <span class="code-number">0</span>; n &lt; t.total_steps; n++) {
+    m->step_delay = <span class="code-func">Trap_StepDelay</span>(&amp;t, n);
+    <span class="code-func">StepPulse</span>(m);     <span class="code-comment">// 发一个脉冲</span>
+  }
+}</div>
+
+          <div class="info-box warning mt-3"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg><div><strong>梯形曲线的局限</strong>：加速段和匀速段交界处加速度突变，对机械有冲击（会"咯噔"一下）。高精度场合用<strong>S曲线</strong>：在梯形基础上，加速段本身再分成"加加速-匀加速-减加速"三段，使速度二阶导连续。实现复杂但运动极平滑。开源项目 <code>AccelStepper</code> 和 GRBL 的加减速模块都用了这个原理。</div></div>
+
+          <div class="info-box tip mt-3"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg><div><strong>工程选择</strong>：① 短行程（总步数 &lt; 2×加速步数）时无法走完梯形，要做特殊处理（三角曲线，没有匀速段）。② 加速段步数经验值 = 总步数的 1/4 到 1/3。③ 真正的高性能实现用<strong>定时器中断</strong>替代 <code>delay_us</code>，每个中断发一个脉冲并更新下次的 ARR，CPU 几乎不阻塞。</div></div>
+        `},
+        { title: '调试与验证：如何确认算法真的起作用', content: `
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-3">
+            电机控制最大的坑：代码"看起来对"，但电机实际行为不对。光靠肉眼观察不够，必须用<strong>可量化的验证手段</strong>。下面是一套从简单到专业的调试流程。
+          </p>
+
+          <h4 class="font-medium mt-4 mb-2">第一步：硬件级验证（不写代码也能做）</h4>
+          <div class="step-list">
+            <div class="step-item"><div><strong>听声音</strong>：正常运行的步进电机是平稳的"嗡嗡"声。听到"咔哒咔哒"或"咯噔"= 丢步或加减速冲击。听到刺耳啸叫= 电流过大或共振。</div></div>
+            <div class="step-item"><div><strong>测电流</strong>：万用表串联在电机一相，匀速时电流应稳定在设定值（如1.2A）。加速段电流瞬间冲高正常，但不应超过驱动器上限。</div></div>
+            <div class="step-item"><div><strong>摸温度</strong>：连续运行10分钟后电机外壳 50-60°C 正常，烫手（&gt;70°C）说明电流设置过高或细分不当。</div></div>
+          </div>
+
+          <h4 class="font-medium mt-4 mb-2">第二步：软件级验证（证明算法逻辑正确）</h4>
+          <div class="info-box info mb-3"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>核心原则</strong>：把关键变量<strong>实时输出到上位机</strong>，用波形软件看。看不见的量，就没法调试。</div></div>
+
+          <div class="code-block"><span class="code-comment">/* 调试输出框架：每个控制周期把数据通过串口/USB发出去
+ * 上位机用 VO(eventName) 或 Serial Studio 接收画图 */</span>
+<span class="code-keyword">typedef struct</span> {
+  <span class="code-keyword">uint32_t</span> tick;          <span class="code-comment">// 时间戳</span>
+  <span class="code-keyword">int32_t</span>  target_pos;     <span class="code-comment">// 目标位置</span>
+  <span class="code-keyword">int32_t</span>  actual_pos;     <span class="code-comment">// 实际位置(编码器读)</span>
+  <span class="code-keyword">uint32_t</span> step_delay;     <span class="code-comment">// 当前步间延时</span>
+  <span class="code-keyword">float</span>    speed_rpm;      <span class="code-comment">// 当前转速</span>
+} Debug_Frame_t;
+
+<span class="code-keyword">void</span> <span class="code-func">Debug_Log</span>(<span class="code-keyword">const</span> Debug_Frame_t *f) {
+  <span class="code-comment">// 格式: ,,,...  (CSV，方便上位机解析)</span>
+  <span class="code-func">printf</span>(<span class="code-string">"%lu,%ld,%ld,%lu,%.2f\\n"</span>,
+         f->tick, f->target_pos, f->actual_pos,
+         f->step_delay, f->speed_rpm);
+}
+
+<span class="code-comment">/* 更高级：用 "VOF(name,value)" 协议，Serial Studio 自动识别 */</span>
+<span class="code-comment">// printf("VOF(step_delay,%lu)\\n", m->step_delay);
+// printf("VOF(speed,%.2f)\\n", speed_rpm);</span>
+</div>
+
+          <h4 class="font-medium mt-4 mb-2">第三步：用波形验证加减速是否生效</h4>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            运行一次带加减速的运动，同时输出 <code>step_delay</code>，理想波形应该长这样：
+          </p>
+          <div class="formula-block">
+            <div class="text-left text-sm font-mono" style="color:var(--text-secondary)">
+              step_delay(μs)<br>
+              2000 ┤●<br>
+                   │  ╲<br>
+                   │    ╲<br>
+               100 ┤      ●─────────●<br>
+                   │                 ╲<br>
+                   │                   ╲<br>
+              2000 ┤                     ●<br>
+                   └───────────────────────── 步数<br>
+                   &nbsp;&nbsp;加速&nbsp;&nbsp;匀速&nbsp;&nbsp;减速
+            </div>
+            <div class="text-sm text-gray-500 mt-2">如果波形是平的一条线 = 加减速没生效；如果是锯齿状抖动 = 算法或定时器有问题</div>
+          </div>
+
+          <div class="info-box tip mt-3"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg><div><strong>验证丢步的方法</strong>：让电机走固定步数（如1转=6400步@16细分），结束后<strong>用编码器读实际位置</strong>。理论值6400，实测若5980= 丢了420步。这是判断加减速参数是否足够的金标准。</div></div>
+
+          <h4 class="font-medium mt-4 mb-2">第四步：参数调优的实操流程</h4>
+          <div class="overflow-x-auto mb-3"><table class="compare-table">
+            <thead><tr><th>现象</th><th>原因</th><th>调整方向</th></tr></thead>
+            <tbody>
+              <tr><td class="font-medium">启动就丢步</td><td>起步速度过高</td><td>增大 <code>max_delay</code>（降低起步速度）</td></tr>
+              <tr><td class="font-medium">高速段丢步</td><td>电流不足或负载过大</td><td>调高 Vref（不超过电机额定）；加减速段步数</td></tr>
+              <tr><td class="font-medium">停止时过冲</td><td>减速段不够</td><td>增大 <code>accel_steps</code>，延长减速</td></tr>
+              <tr><td class="font-medium">运动有冲击声</td><td>梯形曲线突变</td><td>换 S 曲线；或减小加速度</td></tr>
+              <tr><td class="font-medium">低速共振振动</td><td>步进电机固有特性</td><td>提高细分（1/16或1/32）；开启 TMC2209 的 StealthChop</td></tr>
+              <tr><td class="font-medium">电机发烫</td><td>电流过大</td><td>降低 Vref；或开启驱动器的空闲降流</td></tr>
+            </tbody>
+          </table></div>
+
+          <div class="info-box warning mt-3"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg><div><strong>调参顺序很关键</strong>：① 先用<strong>极低速度</strong>（min_delay=2000）验证位置精度——能走对再说；② 再逐步提高速度，每次提升后用编码器复核位置；③ 最后调加减速曲线形状。一上来就追求高速是新手最常见的错误。</div></div>
+
+          <h4 class="font-medium mt-4 mb-2">第五步：常用调试工具</h4>
+          <div class="overflow-x-auto"><table class="compare-table">
+            <thead><tr><th>工具</th><th>用途</th><th>价格</th></tr></thead>
+            <tbody>
+              <tr><td class="font-medium">Serial Studio</td><td>开源，接串口CSV自动画实时波形，验证加减速/PID曲线</td><td>免费</td></tr>
+              <tr><td class="font-medium">VOFA+ / FireTool</td><td>国产上位机，支持VOF协议，拖拽控件</td><td>免费</td></tr>
+              <tr><td class="font-medium">逻辑分析仪</td><td>抓STEP/DIR实际波形，看脉冲间隔是否符合加减速</td><td>10-50元(24M/8CH够用)</td></tr>
+              <tr><td class="font-medium">示波器</td><td>看相电流波形、PWM死区，调试BLDC必备</td><td>200元+(手持)</td></tr>
+              <tr><td class="font-medium">万用表</td><td>测Vref、电机电流、供电电压</td><td>必备</td></tr>
+            </tbody>
+          </table></div>
+
+          <div class="info-box tip mt-3"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg><div><strong>一个值得养成的习惯</strong>：每次改算法，先想"<strong>我怎么证明它生效了</strong>"，再写代码。把验证用的串口输出和测试用例一起写进去。这样调试时才不会陷入"改了一堆却不知道哪个起作用"的困境。</div></div>
+        `},
       ],
     },
     'servo': {
@@ -1983,6 +2143,10 @@ const QuizData = {
     { question: '16细分模式下，每转需要的脉冲数为？', options: ['200', '800', '1600', '3200'], answer: 3, explanation: '细分 = 16，基础步数 = 200，总脉冲 = 200 × 16 = 3200。细分越高，运动越平滑，但高频脉冲对MCU要求更高。' },
     { question: '步进电机在高速时容易丢步的原因是？', options: ['电压太低', '转矩随转速下降到不足以克服负载', 'PWM频率不够', '编码器精度不足'], answer: 1, explanation: '步进电机的转矩-转速特性呈严重下降曲线。转速越高，反电动势越大，绕组电流来不及建立，导致转矩急剧下降，无法跟随脉冲而"丢步"。' },
     { question: 'TMC2209相比A4988的最大优势是？', options: ['支持更高电压', '静音模式(SpreadCycle/StealthChop)', '更大的驱动电流', '更小的体积'], answer: 1, explanation: 'TMC2209的StealthChop模式通过斩波算法大幅降低步进电机的噪声，几乎静音运行。同时支持UART配置和更精确的电流控制。' },
+    { question: '为什么步进电机启动时需要加减速曲线？', options: ['省电', '转子有惯性，突然高速会导致磁场切换跟不上而丢步', '降低电机噪音', '延长电机寿命'], answer: 1, explanation: '电机从静止突然要求高速，转子机械惯性跟不上定子磁场的快速切换，导致"失步"（实际位置落后于指令）。加减速让速度平缓过渡，给转子时间跟上。停止时同理需要减速防止过冲。' },
+    { question: '梯形加减速曲线的主要缺点是？', options: ['实现太复杂', '加速段和匀速段交界处加速度突变，对机械有冲击', '不能用于高速', '必须配合编码器'], answer: 1, explanation: '梯形曲线在"加速→匀速"和"匀速→减速"的拐点，加速度瞬间突变（二阶导不连续），机械会"咯噔"一下。S曲线通过让加速度本身也连续变化（加加速-匀加速-减加速）解决此问题，运动更平滑。' },
+    { question: '调试步进电机时，判断是否丢步最可靠的方法是？', options: ['听电机声音', '用手感受振动', '走固定步数后用编码器读实际位置，与理论值对比', '看电机是否发烫'], answer: 2, explanation: '听觉和触觉只能粗判。金标准是闭环验证：指令走6400步（=1转@16细分），用编码器读实际走了多少步，差额就是丢步数。这能把"开环走对没"变成可量化的数字。' },
+    { question: '调试时第一步应该做什么？', options: ['直接调到最高速度测试', '用极低速度验证位置精度，能走对再提速', '关闭加减速', '把电流调到最大'], answer: 1, explanation: '调参顺序：先慢速验证逻辑正确性（位置准、方向对），再逐步提速并每次用编码器复核。一上来追求高速是最常见的新手错误——连基础逻辑都没验证，高速问题会掩盖真正的bug。' },
   ],
   'motor-hobby-servo': [
     { question: '舵机控制信号的频率是多少？', options: ['20Hz', '50Hz', '100Hz', '200Hz'], answer: 1, explanation: '标准舵机使用50Hz PWM信号（周期20ms）。脉冲宽度0.5-2.5ms对应0-180°角度范围。' },
