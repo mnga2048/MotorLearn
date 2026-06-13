@@ -12,16 +12,65 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16/dist/katex.min.css">
   <script src="https://cdn.jsdelivr.net/npm/katex@0.16/dist/katex.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/katex@0.16/dist/contrib/auto-render.min.js"></script>
+  <style>
+    /* 暖色纸张主题 CSS 变量 */
+    :root {
+      --bg: #f8f5f0;
+      --bg-card: #fffcf7;
+      --bg-header: rgba(248,245,240,0.85);
+      --bg-sidebar: #faf8f4;
+      --bg-code: #1e293b;
+      --border: #e8e0d4;
+      --text: #2a2518;
+      --text-secondary: #7a7168;
+      --primary: #c2883e;
+      --primary-light: #d4a05a;
+      --primary-dark: #a0703a;
+      --accent: #b8860b;
+      --success: #4a8c5c;
+      --warning: #d4940a;
+      --danger: #c0392b;
+      --hero-glow: radial-gradient(ellipse at 80% 20%, rgba(194,136,62,0.12) 0%, transparent 60%);
+    }
+    [data-theme="dark"] {
+      --bg: #161b2e;
+      --bg-card: #1c2035;
+      --bg-header: rgba(22,27,46,0.88);
+      --bg-sidebar: #1a1f32;
+      --bg-code: #0f172a;
+      --border: #2a3050;
+      --text: #e0dcd4;
+      --text-secondary: #8892a4;
+      --primary: #e8a838;
+      --primary-light: #f0b848;
+      --primary-dark: #c89030;
+      --accent: #e8a838;
+      --success: #5ab878;
+      --warning: #f0b030;
+      --danger: #e06050;
+      --hero-glow: radial-gradient(ellipse at 80% 20%, rgba(232,168,56,0.08) 0%, transparent 60%);
+    }
+    body { background: var(--bg); color: var(--text); }
+  </style>
 </head>
-<body class="bg-gray-50 text-gray-900 dark:bg-gray-950 dark:text-gray-100">
+<body>
+  <!-- 阅读进度条 -->
+  <div id="reading-bar" class="fixed top-16 left-0 right-0 h-[3px] z-50 pointer-events-none">
+    <div id="reading-bar-inner" class="h-full rounded-r-full transition-[width] duration-100" style="width:0%;background:linear-gradient(90deg,var(--primary),var(--success))"></div>
+  </div>
+
   <!-- 顶部导航栏 -->
-  <header id="topbar" class="fixed top-0 left-0 right-0 z-50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 transition-all duration-300">
+  <header id="topbar" class="fixed top-0 left-0 right-0 z-50 backdrop-blur-md border-b transition-all duration-300" style="background:var(--bg-header);border-color:var(--border)">
     <div class="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
       <div class="flex items-center gap-3">
-        <button id="menu-toggle" class="lg:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+        <button id="menu-toggle" class="lg:hidden p-2 rounded-lg transition-colors" style="--hover-bg:rgba(0,0,0,0.05)" onclick="this.querySelector('span').classList.toggle('hidden')">
           <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
         </button>
-        <a href="#" class="flex items-center gap-2 text-xl font-bold text-blue-600 dark:text-blue-400" onclick="navigateTo('home')">
+        <!-- 移动端搜索按钮 -->
+        <button id="mobile-search-btn" class="lg:hidden p-2 rounded-lg transition-colors" onclick="document.getElementById('search-input').focus()">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        </button>
+        <a href="#" class="flex items-center gap-2 text-xl font-bold" style="color:var(--primary)" onclick="navigateTo('home')">
           <svg class="w-8 h-8" viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="14" stroke="currentColor" stroke-width="2"/><circle cx="16" cy="16" r="6" stroke="currentColor" stroke-width="2"/><path d="M16 2v4M16 26v4M2 16h4M26 16h4" stroke="currentColor" stroke-width="2"/></svg>
           MotorLearn
         </a>
@@ -29,21 +78,25 @@
       <div class="flex items-center gap-3">
         <!-- 搜索 -->
         <div class="relative hidden sm:block">
-          <input id="search-input" type="text" placeholder="搜索知识点..." class="w-56 pl-9 pr-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all">
-          <svg class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-          <div id="search-results" class="absolute top-full mt-1 w-full bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 hidden z-50 max-h-80 overflow-y-auto"></div>
+          <input id="search-input" type="text" placeholder="搜索知识点... (Ctrl+K)" class="w-56 pl-9 pr-3 py-1.5 text-sm rounded-lg border focus:outline-none focus:ring-2 focus:border-transparent transition-all" style="border-color:var(--border);background:var(--bg);--tw-ring-color:var(--primary)">
+          <svg class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style="color:var(--text-secondary)" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+          <div id="search-results" class="absolute top-full mt-1 w-full rounded-lg shadow-lg border hidden z-50 max-h-80 overflow-y-auto" style="background:var(--bg-card);border-color:var(--border)"></div>
         </div>
         <!-- 主题切换 -->
-        <button id="theme-toggle" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" title="切换主题">
+        <button id="theme-toggle" class="p-2 rounded-lg transition-colors" title="切换主题 (T)">
           <svg id="theme-icon-light" class="w-5 h-5 hidden dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
           <svg id="theme-icon-dark" class="w-5 h-5 block dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
         </button>
+        <!-- 帮助 -->
+        <button id="help-btn" class="p-2 rounded-lg transition-colors hidden sm:block" title="快捷键帮助 (?)">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        </button>
         <!-- 学习进度 -->
         <div class="flex items-center gap-1.5 text-sm">
-          <div class="w-24 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-            <div id="global-progress-bar" class="h-full bg-gradient-to-r from-blue-500 to-green-500 rounded-full transition-all duration-500" style="width: 0%"></div>
+          <div class="w-24 h-2 rounded-full overflow-hidden" style="background:var(--border)">
+            <div id="global-progress-bar" class="h-full rounded-full transition-all duration-500" style="width:0%;background:linear-gradient(90deg,var(--primary),var(--success))"></div>
           </div>
-          <span id="global-progress-text" class="text-gray-500 dark:text-gray-400 min-w-[2.5rem]">0%</span>
+          <span id="global-progress-text" class="min-w-[2.5rem]" style="color:var(--text-secondary)">0%</span>
         </div>
       </div>
     </div>
@@ -51,30 +104,43 @@
 
   <div class="flex pt-16">
     <!-- 侧边栏 -->
-    <aside id="sidebar" class="fixed left-0 top-16 bottom-0 w-64 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 overflow-y-auto transition-transform duration-300 lg:translate-x-0 -translate-x-full z-40">
-      <nav class="p-4 space-y-1" id="sidebar-nav">
-        <!-- 由JS动态生成 -->
-      </nav>
+    <aside id="sidebar" class="fixed left-0 top-16 bottom-0 w-64 border-r overflow-y-auto transition-transform duration-300 lg:translate-x-0 -translate-x-full z-40" style="background:var(--bg-sidebar);border-color:var(--border)">
+      <nav class="p-4 space-y-1" id="sidebar-nav"></nav>
     </aside>
-
-    <!-- 侧边栏遮罩 -->
     <div id="sidebar-overlay" class="fixed inset-0 bg-black/50 z-30 hidden lg:hidden" onclick="closeSidebar()"></div>
 
     <!-- 主内容区 -->
     <main id="main-content" class="flex-1 lg:ml-64 min-h-screen">
-      <div id="page-container" class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <!-- 由JS动态渲染页面内容 -->
-      </div>
+      <div id="page-container" class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8" style="transition:opacity 0.2s,transform 0.2s"></div>
     </main>
   </div>
 
   <!-- 回到顶部 -->
-  <button id="back-to-top" class="fixed bottom-6 right-6 p-3 rounded-full bg-blue-600 text-white shadow-lg hover:bg-blue-700 transition-all opacity-0 pointer-events-none z-50">
+  <button id="back-to-top" class="fixed bottom-6 right-6 p-3 rounded-full text-white shadow-lg transition-all opacity-0 pointer-events-none z-50" style="background:var(--primary)">
     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/></svg>
   </button>
 
+  <!-- 快捷键帮助面板 -->
+  <div id="help-panel" class="fixed inset-0 z-[60] hidden items-center justify-center" style="background:rgba(0,0,0,0.4);backdrop-filter:blur(4px)">
+    <div class="rounded-xl shadow-2xl p-6 max-w-sm w-full mx-4" style="background:var(--bg-card)">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-bold">键盘快捷键</h3>
+        <button onclick="document.getElementById('help-panel').classList.add('hidden');document.getElementById('help-panel').classList.remove('flex')" class="p-1 rounded-lg transition-colors">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="space-y-2 text-sm">
+        <div class="flex justify-between"><span style="color:var(--text-secondary)">聚焦搜索</span><kbd class="px-2 py-0.5 rounded text-xs font-mono" style="background:var(--border)">Ctrl+K</kbd></div>
+        <div class="flex justify-between"><span style="color:var(--text-secondary)">切换主题</span><kbd class="px-2 py-0.5 rounded text-xs font-mono" style="background:var(--border)">T</kbd></div>
+        <div class="flex justify-between"><span style="color:var(--text-secondary)">帮助面板</span><kbd class="px-2 py-0.5 rounded text-xs font-mono" style="background:var(--border)">?</kbd></div>
+        <div class="flex justify-between"><span style="color:var(--text-secondary)">关闭面板</span><kbd class="px-2 py-0.5 rounded text-xs font-mono" style="background:var(--border)">Esc</kbd></div>
+      </div>
+    </div>
+  </div>
+
   <script src="js/data.js"></script>
   <script src="js/progress.js"></script>
+  <script src="js/favorites.js"></script>
   <script src="js/search.js"></script>
   <script src="js/calculator.js"></script>
   <script src="js/charts.js"></script>

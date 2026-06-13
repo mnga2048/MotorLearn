@@ -913,6 +913,48 @@ Servo myServo;
   ],
 };
 
+// 自测题目数据
+const QuizData = {
+  'beginner-em': [
+    { question: '通电导体在磁场中受到的力称为？', options: ['安培力（电磁力）', '法拉第力', '洛伦兹电动力', '库仑力'], answer: 0, explanation: '安培力公式 F = BIL sin(θ)，方向由左手定则确定。这就是电动机的基本工作原理。' },
+    { question: '安培力公式 F = BIL sin(θ) 中，θ 代表什么？', options: ['电流方向与磁场的夹角', '导体长度与磁场的夹角', '温度', '时间'], answer: 0, explanation: 'θ 是电流方向与磁场方向（B）之间的夹角。当电流与磁场垂直时（θ=90°），安培力最大。' },
+    { question: '法拉第电磁感应定律的数学表达式是？', options: ['F = BIL', 'E = -dΦ/dt', 'P = UI', 'V = IR'], answer: 1, explanation: 'E = -dΦ/dt，感应电动势等于磁通量变化率的负值。负号体现楞次定律——感应电动势的方向阻碍磁通量变化。' },
+    { question: '左手定则用于判断什么？', options: ['感应电动势方向', '通电导体受力方向（电动机）', '磁力线方向', '电流大小'], answer: 1, explanation: '左手定则（安培定则）用于电动机——磁感线穿入手心，四指指向电流方向，大拇指指向受力方向。右手定则用于发电机。' },
+  ],
+  'beginner-classify': [
+    { question: '无刷直流电机（BLDC）的核心特点是什么？', options: ['使用机械换向器', '用电子电路实现换向', '只能单向旋转', '效率低于有刷电机'], answer: 1, explanation: 'BLDC 去掉了机械电刷和换向器，通过电子控制器（如FOC驱动器）实现电流换向，因此效率高、寿命长。' },
+    { question: '步进电机最适合的应用场景是？', options: ['高速连续旋转', '精确位置控制', '大功率输出', '宽调速范围'], answer: 1, explanation: '步进电机通过脉冲信号精确控制角位移，无需位置反馈即可实现精确定位。是3D打印机和CNC的首选。' },
+    { question: '以下哪种电机属于闭环控制？', options: ['步进电机', '有刷直流电机', '伺服电机', '开关磁阻电机'], answer: 2, explanation: '伺服电机配备编码器进行位置反馈，驱动器根据偏差进行闭环PID控制，不会出现丢步问题。' },
+  ],
+  'beginner-params': [
+    { question: '功率 P = T × ω 中，ω 的单位是？', options: ['RPM', 'rad/s（弧度/秒）', 'N·m', 'W'], answer: 1, explanation: 'ω 是角速度，单位 rad/s。当转速用 RPM 表示时，转换公式为 ω = 2πn/60。' },
+    { question: 'KV值在哪种电机中最常用？', options: ['有刷直流电机', '无刷直流电机（BLDC）', '步进电机', '伺服电机'], answer: 1, explanation: 'KV值（RPM/V）是无刷电机的重要参数，表示每增加1V电压，空载转速增加多少RPM。KV=1000的电机在11.1V下空载约11100RPM。' },
+    { question: '电机效率的定义是？', options: ['输入电压/输出电压', '输出功率/输入功率 × 100%', '转矩/转速', '电流/电压'], answer: 1, explanation: '效率 η = P_输出 / P_输入 × 100%。有刷电机效率60-75%，无刷电机效率85-95%。' },
+  ],
+  'beginner-drive': [
+    { question: 'H桥电路由几个开关管组成？', options: ['2个', '3个', '4个', '6个'], answer: 2, explanation: 'H桥由4个开关管（MOSFET或三极管）组成"H"形状，通过控制对角线开关管实现正转、反转、制动。' },
+    { question: 'PWM占空比为25%时，电机两端平均电压为电源电压的多少？', options: ['25%', '50%', '75%', '100%'], answer: 0, explanation: 'V_avg = D × V_cc = 0.25 × V_cc。占空比直接等于平均电压占电源电压的比例。' },
+  ],
+  'advanced-pid': [
+    { question: 'PID中"I"（积分）项的主要作用是？', options: ['加快响应速度', '消除稳态误差', '抑制超调', '预测误差变化'], answer: 1, explanation: '积分项累积历史误差，当存在持续的稳态误差时，积分不断增大直到消除偏差。但可能导致积分饱和。' },
+    { question: '电机电流环控制通常使用什么控制器？', options: ['PID', 'PI', 'PD', 'P'], answer: 1, explanation: '由于电流采样噪声较大，微分项(D)会放大噪声，因此电机电流环几乎都只使用PI控制。' },
+  ],
+  'advanced-foc': [
+    { question: 'FOC控制中，通常将Id设为多少？', options: ['最大值', '0', '与Iq相等', '负值'], answer: 1, explanation: '在表贴式永磁电机（SPM）中，设Id=0可以实现最大转矩/电流比（MTPA），因为磁场已由永磁体提供。' },
+    { question: 'FOC的第一步坐标变换是什么？', options: ['Park变换', 'Clarke变换', '傅里叶变换', '拉普拉斯变换'], answer: 1, explanation: 'FOC流程：三相电流采样 → Clarke变换(abc→αβ) → Park变换(αβ→dq) → PI控制 → 反Park → SVPWM。' },
+  ],
+  'advanced-coord': [
+    { question: 'Clarke变换的目的是？', options: ['将直流变为交流', '将三相变为两相', '将电压变为电流', '将转矩变为速度'], answer: 1, explanation: 'Clarke变换将三相静止坐标系(a,b,c)映射到两相静止坐标系(α,β)，减少一个维度，便于后续的Park变换。' },
+  ],
+  'advanced-sensorless': [
+    { question: '无感控制在零速时为什么无法工作？', options: ['电机无法启动', '没有反电动势可检测', '编码器故障', '电流过大'], answer: 1, explanation: 'SMO等无感方法依赖反电动势来估算转子位置，而零速时反电动势为零。通常需要开环启动或高频注入（HFI）来启动。' },
+  ],
+  'advanced-multiloop': [
+    { question: '三环串级控制中，应该最先调试哪个环？', options: ['位置环', '速度环', '电流环', '同时调试'], answer: 2, explanation: '调试顺序由内到外：先调电流环（响应最快）→ 再调速度环 → 最后调位置环。内环稳定后再调外环。' },
+    { question: '电流环的带宽通常为？', options: ['10-100Hz', '100-500Hz', '1-10kHz', '10-100kHz'], answer: 2, explanation: '电流环（最内环）带宽最高，约1-10kHz。速度环约100-500Hz，位置环约10-100Hz。内环频率约为外环的10倍。' },
+  ],
+};
+
 // 收集所有知识点ID（用于进度追踪）
 const AllKnowledgeIds = (() => {
   const ids = [];
