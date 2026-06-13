@@ -17,6 +17,7 @@ const MotorData = {
       children: [
         { id: 'advanced-pid', label: 'PID控制理论' },
         { id: 'advanced-pid-impl', label: 'PID的C语言实现' },
+        { id: 'encoder', label: '编码器与位置反馈' },
         { id: 'advanced-foc', label: 'FOC磁场定向控制' },
         { id: 'advanced-coord', label: '坐标变换' },
         { id: 'advanced-sensorless', label: '无感控制' },
@@ -563,6 +564,224 @@ const MotorData = {
               <tr><td class="font-medium">Kp</td><td>响应慢、稳态误差大</td><td>超调、振荡</td><td>从0.1起，倍增至振荡后回退60%</td></tr>
               <tr><td class="font-medium">Ki</td><td>稳态误差消不掉</td><td>超调、积分饱和</td><td>Ki = Kp / (控制周期×10)</td></tr>
               <tr><td class="font-medium">Kd</td><td>超调大</td><td>噪声放大、高频抖动</td><td>电机电流环通常设0（用PI）</td></tr>
+            </tbody>
+          </table></div>
+        `,
+      },
+      {
+        id: 'encoder',
+        title: '编码器与位置反馈',
+        desc: '增量/绝对编码器原理、AB正交解码、M法T法测速、AS5600 SPI读取',
+        icon: '🎯',
+        tags: ['位置反馈', '传感器'],
+        content: `
+          <h3 class="text-lg font-semibold mb-3">为什么编码器是闭环控制的"眼睛"</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-4">
+            开环控制（步进电机发脉冲）假设"我发多少脉冲，电机就走多少角度"。但现实中有负载、有丢步、有机械间隙。
+            <strong>编码器</strong>把电机的实际位置/速度反馈给MCU，构成闭环，是实现精确定位（机械臂、CNC、伺服）的前提。
+          </p>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">一、编码器分类与选型</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            按输出信号和原理，编码器主要分三类：
+          </p>
+          <div class="overflow-x-auto"><table class="compare-table">
+            <thead><tr><th>类型</th><th>输出</th><th>断电记忆</th><th>典型分辨率</th><th>常见型号</th><th>适用场景</th></tr></thead>
+            <tbody>
+              <tr><td class="font-medium">增量式<br>(AB正交)</td><td>两路方波脉冲</td><td>❌ 需找零</td><td>100-10000线/转</td><td>霍尔、光电A/B相</td><td>速度测量、BLDC换向</td></tr>
+              <tr><td class="font-medium">绝对式<br>(数字接口)</td><td>角度绝对值</td><td>✅ 上电即知位置</td><td>12-23位</td><td>AS5047/AS5600</td><td>机械臂关节、伺服</td></tr>
+              <tr><td class="font-medium">单相<br>(仅计数)</td><td>一路脉冲</td><td>❌</td><td>低</td><td>简易光电/霍尔</td><td>测速、简单计数</td></tr>
+            </tbody>
+          </table></div>
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-4">
+            <div class="p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+              <div class="font-medium mb-1">🔦 光电编码器</div>
+              <div class="text-sm text-gray-500">精度高、分辨率高，但怕灰尘油污。工业伺服主流。</div>
+            </div>
+            <div class="p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+              <div class="font-medium mb-1">🧲 磁编码器</div>
+              <div class="text-sm text-gray-500">抗油污抗振动，体积小。AS5600/AS5047 是代表，机械臂DIY首选。</div>
+            </div>
+            <div class="p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+              <div class="font-medium mb-1">📡 霍尔传感器</div>
+              <div class="text-sm text-gray-500">分辨率低（仅几个状态），用于BLDC换向，不适合精确定位。</div>
+            </div>
+          </div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">二、增量式AB正交解码原理</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            增量式编码器输出 A、B 两路相位差 90° 的方波。通过比较 A、B 的相位前后，可判断<strong>转向</strong>；通过计数脉冲，可知<strong>位移</strong>。
+          </p>
+          <div class="formula-block">
+            $\\text{分辨率} = \\frac{360°}{\\text{PPR} \\times 4}$
+            <div class="text-sm text-gray-500 mt-2">PPR = 每转脉冲数。×4 是因为A、B的上升下降沿都被计数（4倍频）</div>
+          </div>
+
+          <div class="info-box tip mt-3 mb-4">
+            <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <div><strong>转向判断</strong>：A 相超前 B 相 90° → 正转；B 相超前 A 相 90° → 反转。<strong>4倍频</strong>：同时检测 A、B 的上升沿和下降沿，分辨率提升 4 倍。1000 PPR 编码器 4 倍频后等效 4000 脉冲/转。</div>
+          </div>
+
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            软件 GPIO 中断解码会占用大量 CPU。STM32 等MCU内置了<strong>硬件正交解码器</strong>，把 A、B 直接接到定时器通道，硬件自动完成计数和方向判断：
+          </p>
+          <div class="code-block"><span class="code-comment">/* STM32 HAL：定时器编码器模式配置（纯算法+寄存器对照）*/</span>
+<span class="code-comment">// 核心寄存器：TIMx->SMCR 的 SMS 位决定编码器模式</span>
+<span class="code-comment">// SMS=011: 双通道4倍频（同时检测A、B的上升下降沿）</span>
+<span class="code-comment">// SMS=010: 仅B相边沿（2倍频）  SMS=001: 仅A相边沿（2倍频）</span>
+
+<span class="code-comment">/* 等价的纯软件解码算法（理解原理用，实际用硬件）*/</span>
+<span class="code-keyword">typedef struct</span> {
+  <span class="code-keyword">uint8_t</span> last_state;     <span class="code-comment">// 上一次 A,B 状态（bit0=A, bit1=B）*/</span>
+  <span class="code-keyword">int32_t</span> count;          <span class="code-comment">// 累计计数（带方向）*/</span>
+} Quadrature_t;
+
+<span class="code-comment">// 状态转移表：根据 (旧状态, 新状态) 决定 +1 / -1 / 0
+// 这是硬件解码器内部做的事，列出帮助理解 */</span>
+<span class="code-keyword">static const int8_t</span> TRANS[16] = {
+   <span class="code-number">0</span>, -<span class="code-number">1</span>,  <span class="code-number">1</span>,  <span class="code-number">0</span>,   <span class="code-comment">// 旧状态 00 → 新状态 00/01/10/11 */</span>
+   <span class="code-number">1</span>,  <span class="code-number">0</span>,  <span class="code-number">0</span>, -<span class="code-number">1</span>,   <span class="code-comment">// 旧状态 01 */</span>
+  -<span class="code-number">1</span>,  <span class="code-number">0</span>,  <span class="code-number">0</span>,  <span class="code-number">1</span>,   <span class="code-comment">// 旧状态 10 */</span>
+   <span class="code-number">0</span>,  <span class="code-number">1</span>, -<span class="code-number">1</span>,  <span class="code-number">0</span>    <span class="code-comment">// 旧状态 11 */</span>
+};
+
+<span class="code-keyword">void</span> <span class="code-func">Quad_Update</span>(Quadrature_t *q, <span class="code-keyword">uint8_t</span> ab) {
+  <span class="code-keyword">uint8_t</span> idx = (q->last_state &lt;&lt; <span class="code-number">2</span>) | (ab & <span class="code-number">0x03</span>);
+  q->count += TRANS[idx];
+  q->last_state = ab & <span class="code-number">0x03</span>;
+}</div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">三、STM32定时器编码器模式（硬件4倍频）</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            实际工程中用硬件解码器，MCU几乎零开销。配置好后，直接读 <code>TIMx-&gt;CNT</code> 就是当前累计位置：
+          </p>
+          <div class="code-block"><span class="code-keyword">#define</span> ENC_PPR       <span class="code-number">1000</span>     <span class="code-comment">// 编码器每转脉冲数</span>
+<span class="code-keyword">#define</span> ENC_CPR       (ENC_PPR * <span class="code-number">4</span>)  <span class="code-comment">// 4倍频后计数：4000</span>
+
+<span class="code-keyword">int32_t</span> enc_count_prev = <span class="code-number">0</span>;       <span class="code-comment">// 用于溢出累加（16位CNT会回卷）*/</span>
+<span class="code-keyword">int32_t</span> enc_total = <span class="code-number">0</span>;            <span class="code-comment">// 32位总位置，永不溢出 */</span>
+
+<span class="code-comment">/**
+ * 读取累计位置（解决16位回卷问题）
+ * 在固定周期（如1ms）调用，把本次CNT增量累加到32位总位置
+ */</span>
+<span class="code-keyword">int32_t</span> <span class="code-func">Encoder_ReadTotal</span>(TIM_TypeDef *TIMx) {
+  <span class="code-keyword">int16_t</span> cnt_now = (<span class="code-keyword">int16_t</span>)TIMx->CNT;    <span class="code-comment">// 硬件计数值（带符号）*/</span>
+  <span class="code-keyword">int16_t</span> delta  = cnt_now - (<span class="code-keyword">int16_t</span>)enc_count_prev;
+  enc_total     += delta;                  <span class="code-comment">// 累加到32位</span>
+  enc_count_prev = cnt_now;
+  <span class="code-keyword">return</span> enc_total;
+}
+
+<span class="code-comment">/* 总位置 → 角度（度）*/</span>
+<span class="code-keyword">float</span> <span class="code-func">Encoder_ToAngle</span>(<span class="code-keyword">int32_t</span> total) {
+  <span class="code-keyword">return</span> (<span class="code-keyword">float</span>)total * <span class="code-number">360.0f</span> / ENC_CPR;
+}</div>
+
+          <div class="info-box warning mt-3">
+            <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+            <div><strong>16位回卷是必踩的坑</strong>：定时器 CNT 是 16 位（0~65535），电机连续转超过一圈就会溢出。必须在固定周期频繁采样 + 累加（如上），才能得到连续的 32 位位置。否则位置会突变几万。</div>
+          </div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">四、M法与T法测速</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            有了位置，还要算<strong>速度</strong>。两种经典方法各有适用范围：
+          </p>
+          <div class="overflow-x-auto"><table class="compare-table">
+            <thead><tr><th>方法</th><th>原理</th><th>适用转速</th><th>优缺点</th></tr></thead>
+            <tbody>
+              <tr><td class="font-medium">M法<br>(测频法)</td><td>固定时间T内数脉冲数M<br>v = M / (T × CPR)</td><td>中高速</td><td>高速准；低速时脉冲少，误差大</td></tr>
+              <tr><td class="font-medium">T法<br>(测周法)</td><td>测一个脉冲的周期t<br>v = 1 / (t × CPR)</td><td>低速</td><td>低速准；高速时脉冲太密，测不准</td></tr>
+              <tr><td class="font-medium">M/T法</td><td>两者结合</td><td>全速段</td><td>最准，实现复杂</td></tr>
+            </tbody>
+          </table></div>
+
+          <div class="code-block"><span class="code-comment">/**
+ * M法测速：在控制周期 T_ctrl 内，根据位置增量算速度
+ * @param total_now  当前32位总位置
+ * @param total_prev 上一周期的总位置
+ * @param T_ctrl     控制周期(秒)，如 0.001 = 1ms
+ * @return           转速 RPM
+ */</span>
+<span class="code-keyword">float</span> <span class="code-func">Speed_M_Method</span>(<span class="code-keyword">int32_t</span> total_now, <span class="code-keyword">int32_t</span> total_prev, <span class="code-keyword">float</span> T_ctrl) {
+  <span class="code-keyword">int32_t</span> delta = total_now - total_prev;   <span class="code-comment">// 一个周期内的脉冲增量</span>
+  <span class="code-keyword">float</span> rev = (<span class="code-keyword">float</span>)delta / ENC_CPR;     <span class="code-comment">// 转数</span>
+  <span class="code-keyword">float</span> rps = rev / T_ctrl;                   <span class="code-comment">// 每秒转数</span>
+  <span class="code-keyword">return</span> rps * <span class="code-number">60.0f</span>;                          <span class="code-comment">// 转 RPM</span>
+}
+
+<span class="code-comment">/**
+ * T法测速：用高频时钟测一个编码器脉冲的宽度
+ * @param timer_ticks  一个脉冲内的MCU时钟周期数
+ * @param timer_freq   MCU定时器频率(Hz)
+ * @return             转速 RPM
+ */</span>
+<span class="code-keyword">float</span> <span class="code-func">Speed_T_Method</span>(<span class="code-keyword">uint32_t</span> timer_ticks, <span class="code-keyword">uint32_t</span> timer_freq) {
+  <span class="code-keyword">if</span> (timer_ticks == <span class="code-number">0</span>) <span class="code-keyword">return</span> <span class="code-number">0</span>;
+  <span class="code-keyword">float</span> pulse_period = (<span class="code-keyword">float</span>)timer_ticks / timer_freq;  <span class="code-comment">// 一个脉冲的秒数</span>
+  <span class="code-keyword">float</span> rps = <span class="code-number">1.0f</span> / (pulse_period * ENC_CPR);       <span class="code-comment">// 每秒转数</span>
+  <span class="code-keyword">return</span> rps * <span class="code-number">60.0f</span>;
+}</div>
+
+          <div class="info-box tip mt-3">
+            <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <div><strong>实用技巧</strong>：M法算出的速度噪声大时，可对结果做一阶低通滤波：<code>v_out = α·v_new + (1-α)·v_last</code>。α 越小越平滑但延迟越大。或者直接用<strong>卡尔曼滤波</strong>融合位置和速度估计。</div>
+          </div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">五、绝对编码器SPI读取（AS5600/AS5047）</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            绝对编码器<strong>上电即知位置</strong>，无需找零，是机械臂关节的首选。AS5600（12位，I²C）、AS5047（14位，SPI）最常见。下面是通用的 SPI 读取骨架（纯算法）：
+          </p>
+          <div class="code-block"><span class="code-comment">/* AS5047 14位磁绝对编码器 SPI 读取
+ * 寄存器 0x3FFE = 角度值（14位，0~16383 对应 0~360°）*/</span>
+<span class="code-keyword">#define</span> AS5047_ANGLE_REG   <span class="code-number">0x3FFE</span>
+<span class="code-keyword">#define</span> AS5047_RESOLUTION  <span class="code-number">16384</span>    <span class="code-comment">// 2^14</span>
+
+<span class="code-comment">/* 平台相关：由调用方实现 SPI 收发（HAL/寄存器/软SPI均可）*/</span>
+<span class="code-keyword">extern uint16_t</span> <span class="code-func">SPI_Transfer16</span>(<span class="code-keyword">uint16_t</span> cmd);
+
+<span class="code-comment">/**
+ * 读取角度（0~360度，浮点）
+ * 注意：AS5047 命令字最高位=1表示读，bit14=0
+ */</span>
+<span class="code-keyword">float</span> <span class="code-func">AS5047_ReadAngle</span>(<span class="code-keyword">void</span>) {
+  <span class="code-keyword">uint16_t</span> raw = <span class="code-func">SPI_Transfer16</span>(AS5047_ANGLE_REG | <span class="code-number">0x4000</span>);
+  raw &= <span class="code-number">0x3FFF</span>;                          <span class="code-comment">// 取低14位有效数据</span>
+  <span class="code-keyword">return</span> (<span class="code-keyword">float</span>)raw * <span class="code-number">360.0f</span> / AS5047_RESOLUTION;
+}
+
+<span class="code-comment">/**
+ * 角度差计算（处理跨越0°/360°边界）
+ * 例：350° 到 10°，实际走了 +20°，而不是 -340°
+ */</span>
+<span class="code-keyword">float</span> <span class="code-func">Angle_Diff</span>(<span class="code-keyword">float</span> a, <span class="code-keyword">float</span> b) {
+  <span class="code-keyword">float</span> d = a - b;
+  <span class="code-keyword">while</span> (d &gt;  <span class="code-number">180.0f</span>) d -= <span class="code-number">360.0f</span>;
+  <span class="code-keyword">while</span> (d &lt; -<span class="code-number">180.0f</span>) d += <span class="code-number">360.0f</span>;
+  <span class="code-keyword">return</span> d;
+}</div>
+
+          <div class="info-box info mt-3">
+            <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <div><strong>选型建议</strong>：预算有限选 AS5600（I²C，几块钱，12位精度够 DIY）；工业级选 AS5047（SPI，14位，带宽高）；超高速场景选旋转变压器（Resolver，模拟量，抗干扰极强但需专用解码芯片如 AD2S1210）。</div>
+          </div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">六、编码器在电机控制中的三种用法</h3>
+          <div class="step-list">
+            <div class="step-item"><div><strong>速度反馈</strong>：M法算出转速 → 喂给速度环 PID → 稳速控制。直流电机闭环调速的基础。</div></div>
+            <div class="step-item"><div><strong>位置反馈</strong>：累计位置 → 喂给位置环 PID → 精确定位。机械臂关节、CNC、3D打印机。</div></div>
+            <div class="step-item"><div><strong>换向信号（BLDC）</strong>：霍尔或高分辨率编码器提供转子位置 → 决定哪两相通电。FOC 的电角度 θ 就来自这里。</div></div>
+          </div>
+
+          <h4 class="font-medium mt-6 mb-2">分辨率选择速查</h4>
+          <div class="overflow-x-auto"><table class="compare-table">
+            <thead><tr><th>应用</th><th>建议分辨率</th><th>理由</th></tr></thead>
+            <tbody>
+              <tr><td class="font-medium">BLDC换向</td><td>霍尔（60°电角度）</td><td>六步换向只需6个状态，够用</td></tr>
+              <tr><td class="font-medium">直流电机调速</td><td>100-1000 PPR</td><td>速度环对分辨率要求不高</td></tr>
+              <tr><td class="font-medium">机械臂关节</td><td>12-14位绝对编码器</td><td>定位精度 0.02-0.08°，断电不丢位</td></tr>
+              <tr><td class="font-medium">CNC/伺服</td><td>17-23位绝对</td><td>微米级定位，需高精度+高带宽</td></tr>
             </tbody>
           </table></div>
         `,
@@ -1737,6 +1956,12 @@ const QuizData = {
     { question: '积分饱和（Windup）会导致什么现象？', options: ['稳态误差变大', '执行机构饱和时积分持续累积，误差反向后需要很久才能"卸下来"，导致严重超调', '系统完全失控振荡', '微分项被放大'], answer: 1, explanation: '当输出到达限幅（如PWM满量程）后，若积分仍在累加，误差反向时积分项已变得很大，需要长时间才能减下来，表现为"超调大、恢复慢"。钳位法通过停止饱和时的积分累加来解决。' },
     { question: 'Q15定点PID最适合用在哪种平台？', options: ['STM32F4 (Cortex-M4F，有FPU)', 'STM32F103 (Cortex-M3，无FPU)', 'ESP32 (双核，有FPU)', '树莓派 (Linux)', ], answer: 1, explanation: 'Cortex-M0/M0+/M3 没有硬件浮点单元，float 运算靠软件模拟（几十个时钟周期）。Q15用int16运算可提速5-10倍。有FPU的M4F/M7直接用浮点版即可。' },
     { question: '三环串级PID（位置-速度-电流）的正确调试顺序是？', options: ['从位置环到电流环（外到内）', '从电流环到位置环（内到外）', '三环同时调试', '随机顺序都行'], answer: 1, explanation: '必须先调内环（电流环），保证它又快又稳后，外环（速度环）才有可靠的"执行器"；再调速度环；最后调最外的位置环。内环带宽约为外环的5~10倍。' },
+  ],
+  'encoder': [
+    { question: '一个1000 PPR的增量编码器，4倍频后的实际分辨率是多少？', options: ['1000 脉冲/转', '2000 脉冲/转', '4000 脉冲/转', '8000 脉冲/转'], answer: 2, explanation: '4倍频同时检测A、B两相的上升沿和下降沿，每个PPR产生4个计数。1000 PPR × 4 = 4000 脉冲/转，分辨率 = 360°/4000 = 0.09°。' },
+    { question: 'STM32读取编码器CNT时，为什么要在固定周期累加到32位变量？', options: ['提高精度', '解决16位CNT连续转动会溢出回卷的问题，否则位置会突变几万', '加快读取速度', '节省内存'], answer: 1, explanation: 'TIM的CNT是16位（最大65535），电机转超过一圈就会回卷。必须在1ms等固定周期频繁采样，把每次的16位增量累加到32位总位置，才能得到连续不突变的位置值。' },
+    { question: 'M法测速适合什么场景？', options: ['极低速', '中高速', '只能用于绝对编码器', '只能测角度不能测速度'], answer: 1, explanation: 'M法是"固定时间数脉冲"，高速时一个周期内脉冲多，统计误差小；低速时脉冲稀少（可能一个周期0个脉冲），误差极大。低速应用T法（测一个脉冲的周期）。' },
+    { question: '机械臂关节为什么优先选绝对编码器而非增量编码器？', options: ['绝对编码器更便宜', '上电即知位置、无需找零，断电不丢位', '绝对编码器分辨率更低', '增量编码器不能测角度'], answer: 1, explanation: '绝对编码器每个位置对应唯一的数字码，上电直接读出角度，无需"回零"动作。机械臂断电后关节位置保持，增量编码器会丢失参考点。代价是绝对编码器更贵、接口更复杂。' },
   ],
   'advanced-foc': [
     { question: 'FOC控制中，通常将Id设为多少？', options: ['最大值', '0', '与Iq相等', '负值'], answer: 1, explanation: '在表贴式永磁电机（SPM）中，设Id=0可以实现最大转矩/电流比（MTPA），因为磁场已由永磁体提供。' },
