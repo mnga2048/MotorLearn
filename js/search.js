@@ -6,19 +6,24 @@ const Search = {
   buildIndex() {
     this.index = [];
     MotorData.beginner?.sections?.forEach(s => {
-      this.index.push({ id: s.id, title: s.title, desc: s.desc, tags: s.tags || [], page: 'beginner' });
+      // 入门篇知识点：详情页就是 section.id 本身
+      this.index.push({ id: s.id, title: s.title, desc: s.desc, tags: s.tags || [], target: s.id });
     });
     MotorData.advanced?.sections?.forEach(s => {
-      this.index.push({ id: s.id, title: s.title, desc: s.desc, tags: s.tags || [], page: 'advanced' });
+      // 进阶篇知识点：详情页就是 section.id 本身
+      this.index.push({ id: s.id, title: s.title, desc: s.desc, tags: s.tags || [], target: s.id });
     });
     Object.entries(MotorData.motorTypes || {}).forEach(([key, m]) => {
-      this.index.push({ id: 'motor-' + key, title: m.title, desc: m.overview.substring(0, 80) + '...', tags: [key], page: key });
+      // 电机概览：详情页是电机 key
+      this.index.push({ id: key, title: m.title, desc: m.overview.substring(0, 80) + '...', tags: [key], target: key });
       m.sections?.forEach(s => {
-        this.index.push({ id: 'motor-' + key, title: m.title + ' - ' + s.title, desc: s.content?.replace(/<[^>]*>/g, '').substring(0, 100) || '', tags: [], page: key, scrollTo: s.title });
+        // 电机子章节：进入电机详情页后展开对应手风琴
+        this.index.push({ id: key, title: m.title + ' - ' + s.title, desc: s.content?.replace(/<[^>]*>/g, '').substring(0, 100) || '', tags: [], target: key, scrollTo: s.title });
       });
     });
     MotorData.industry?.sections?.forEach(s => {
-      this.index.push({ id: 'industry', title: s.title, desc: s.desc, tags: s.tags || [], page: 'industry' });
+      // 行业科普：进入行业页后展开对应手风琴
+      this.index.push({ id: 'industry', title: s.title, desc: s.desc, tags: s.tags || [], target: 'industry', scrollTo: s.title });
     });
   },
 
@@ -51,7 +56,7 @@ const Search = {
         }
         window._lastSearchKeyword = kw;
         results.innerHTML = matches.map(m => `
-          <button class="w-full text-left px-3 py-2 border-b transition-colors" style="border-color:var(--border)" onclick="navigateTo('${m.page}');document.getElementById('search-results').classList.add('hidden');document.getElementById('search-input').value='';">
+          <button class="w-full text-left px-3 py-2 border-b transition-colors" style="border-color:var(--border)" onclick="Search.jumpTo(${JSON.stringify({ target: m.target, scrollTo: m.scrollTo }).replace(/"/g, '&quot;')})">
             <div class="text-sm font-medium" style="color:var(--text)">${this.highlight(m.title, kw)}</div>
             <div class="text-xs truncate" style="color:var(--text-secondary)">${this.highlight(m.desc, kw)}</div>
           </button>
@@ -67,6 +72,36 @@ const Search = {
   highlight(text, kw) {
     const regex = new RegExp(`(${kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
     return text.replace(regex, '<mark class="search-highlight">$1</mark>');
+  },
+
+  // 搜索结果点击跳转：导航到目标页，并展开/滚动到指定手风琴
+  jumpTo({ target, scrollTo } = {}) {
+    // 关闭搜索面板并清空输入
+    document.getElementById('search-results')?.classList.add('hidden');
+    const input = document.getElementById('search-input');
+    if (input) input.value = '';
+    if (!target) return;
+    navigateTo(target);
+    if (scrollTo) {
+      // 等页面渲染完成（renderPage 内有 150ms 淡出延迟）
+      setTimeout(() => {
+        const container = document.getElementById('page-container');
+        if (!container) return;
+        // 找到标题文本匹配的手风琴头部
+        const headers = container.querySelectorAll('.accordion-header');
+        let matched = null;
+        headers.forEach(h => {
+          if (h.textContent.trim().includes(scrollTo)) matched = h;
+        });
+        if (matched) {
+          // 展开手风琴（若已折叠）
+          if (!matched.classList.contains('open') && typeof toggleAccordion === 'function') {
+            toggleAccordion(matched);
+          }
+          matched.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }, 260);
+    }
   },
 
   // 在页面内容中高亮搜索关键词
