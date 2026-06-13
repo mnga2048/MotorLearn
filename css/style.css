@@ -126,6 +126,8 @@
   background: #1e293b; color: #e2e8f0; border-radius: 0.5rem;
   padding: 1rem 1.25rem; font-family: 'Fira Code','Consolas',monospace; font-size: 0.8125rem;
   line-height: 1.6; overflow-x: auto; margin: 0.75rem 0; position: relative;
+  white-space: pre;          /* 保留换行和缩进，否则代码会挤成一行 */
+  tab-size: 4;               /* Tab 显示为 4 空格 */
 }
 .code-block .code-comment { color: #64748b; }
 .code-block .code-keyword { color: #c084fc; }
