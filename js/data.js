@@ -16,6 +16,7 @@ const MotorData = {
       id: 'advanced', label: '进阶篇', icon: 'rocket', badge: '进阶', badgeClass: 'badge-advanced',
       children: [
         { id: 'advanced-pid', label: 'PID控制理论' },
+        { id: 'advanced-pid-impl', label: 'PID的C语言实现' },
         { id: 'advanced-foc', label: 'FOC磁场定向控制' },
         { id: 'advanced-coord', label: '坐标变换' },
         { id: 'advanced-sensorless', label: '无感控制' },
@@ -300,6 +301,270 @@ const MotorData = {
             <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
             <div><strong>电机控制中常用PI而非PID</strong>：在电流环控制中，由于电流采样噪声较大，微分项(D)通常会放大噪声，因此电机控制中的电流环几乎都只使用PI控制。</div>
           </div>
+        `,
+      },
+      {
+        id: 'advanced-pid-impl',
+        title: 'PID的C语言实现',
+        desc: '从理论到工程：位置式/增量式PID、抗饱和、定点、微分滤波、串级多环',
+        icon: '💻',
+        tags: ['核心算法', '工程实现'],
+        content: `
+          <h3 class="text-lg font-semibold mb-3">为什么需要"工程化"的PID</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-4">
+            上一篇讲了PID的数学原理，但把它直接搬到单片机上跑，会立刻遇到三个现实问题：
+            <strong>积分饱和</strong>（误差长时间存在时积分项失控）、<strong>定点溢出</strong>（无FPU芯片上浮点太慢）、
+            <strong>微分噪声</strong>（ADC采样毛刺被微分放大）。本节给出经过工程验证的C语言实现，可直接抄进你的驱动工程。
+          </p>
+
+          <div class="info-box tip mb-6">
+            <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <div>以下代码均为<strong>纯算法实现</strong>，不依赖任何MCU外设。移植时只需提供 <code>set_output()</code> 和 <code>read_feedback()</code> 两个函数即可。</div>
+          </div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">一、PID控制器数据结构</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            先定义一个通用的PID结构体，把所有状态变量打包在一起，方便管理多个控制环：
+          </p>
+          <div class="code-block"><span class="code-keyword">typedef struct</span> {
+  <span class="code-comment">/* 设定参数 */</span>
+  <span class="code-keyword">float</span> Kp;           <span class="code-comment">// 比例系数</span>
+  <span class="code-keyword">float</span> Ki;           <span class="code-comment">// 积分系数</span>
+  <span class="code-keyword">float</span> Kd;           <span class="code-comment">// 微分系数</span>
+  <span class="code-keyword">float</span> out_min;      <span class="code-comment">// 输出下限（如 PWM 占空比 0）</span>
+  <span class="code-keyword">float</span> out_max;      <span class="code-comment">// 输出上限（如 PWM 占空比 1000）</span>
+
+  <span class="code-comment">/* 运行状态（每次更新会变化）*/</span>
+  <span class="code-keyword">float</span> integral;     <span class="code-comment">// 积分累积量</span>
+  <span class="code-keyword">float</span> last_error;   <span class="code-comment">// 上一次误差（用于微分）*/</span>
+  <span class="code-keyword">float</span> last_meas;    <span class="code-comment">// 上一次测量值（用于微分测量法）*/</span>
+} PID_t;
+
+<span class="code-comment">/* 初始化：清零状态，设置参数和限幅 */</span>
+<span class="code-keyword">void</span> <span class="code-func">PID_Init</span>(PID_t *pid, <span class="code-keyword">float</span> kp, <span class="code-keyword">float</span> ki, <span class="code-keyword">float</span> kd,
+                <span class="code-keyword">float</span> min, <span class="code-keyword">float</span> max) {
+  pid->Kp = kp;  pid->Ki = ki;  pid->Kd = kd;
+  pid->out_min = min;  pid->out_max = max;
+  pid->integral = <span class="code-number">0.0f</span>;
+  pid->last_error = <span class="code-number">0.0f</span>;
+  pid->last_meas  = <span class="code-number">0.0f</span>;
+}</div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">二、位置式PID（最常用）</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            位置式PID直接输出控制量的绝对值（如PWM占空比、阀门开度），公式：
+          </p>
+          <div class="formula-block">
+            $u = K_p \\cdot e + K_i \\cdot \\sum e + K_d \\cdot \\frac{e - e_{last}}{\\Delta t}$
+          </div>
+          <div class="code-block"><span class="code-comment">/**
+ * 位置式PID更新（每个控制周期调用一次）
+ * @param setpoint  目标值
+ * @param measured  实际测量值（编码器速度、ADC电流等）
+ * @return          控制输出（已限幅到 [out_min, out_max]）
+ */</span>
+<span class="code-keyword">float</span> <span class="code-func">PID_Position_Update</span>(PID_t *pid, <span class="code-keyword">float</span> setpoint, <span class="code-keyword">float</span> measured) {
+  <span class="code-keyword">float</span> error = setpoint - measured;
+
+  <span class="code-comment">// 积分项（累加误差）</span>
+  pid->integral += error;
+
+  <span class="code-comment">// 微分项（用"误差变化"写法，简单但易受噪声影响）</span>
+  <span class="code-keyword">float</span> derivative = error - pid->last_error;
+
+  <span class="code-comment">// 合成输出</span>
+  <span class="code-keyword">float</span> output = pid->Kp * error
+                + pid->Ki * pid->integral
+                + pid->Kd * derivative;
+
+  <span class="code-comment">// 输出限幅</span>
+  <span class="code-keyword">if</span> (output &gt; pid->out_max) output = pid->out_max;
+  <span class="code-keyword">else if</span> (output &lt; pid->out_min) output = pid->out_min;
+
+  pid->last_error = error;
+  <span class="code-keyword">return</span> output;
+}</div>
+          <div class="info-box warning mt-3">
+            <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+            <div><strong>这段代码有个致命缺陷</strong>：当输出到达限幅值后，<code>integral</code> 仍在持续累加（积分饱和）。等误差反向时，积分项需要很久才能"卸"下来，导致严重超调。下一节"抗饱和"专门解决这个问题。</div>
+          </div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">三、增量式PID（适合步进电机/伺服）</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            增量式PID输出的是<strong>控制量的变化量</strong>（Δu），而不是绝对值。它天然避免了积分饱和问题，特别适合步进电机（每次加几个脉冲）、增量型执行机构。
+          </p>
+          <div class="code-block"><span class="code-comment">/**
+ * 增量式PID：输出本次相对上次的增量 Δu
+ * Δu = Kp(e_k - e_{k-1}) + Ki·e_k + Kd(e_k - 2e_{k-1} + e_{k-2})
+ * 调用方需要自己累加：output += PID_Incremental_Update(...)
+ */</span>
+<span class="code-keyword">float</span> <span class="code-func">PID_Incremental_Update</span>(PID_t *pid, <span class="code-keyword">float</span> setpoint, <span class="code-keyword">float</span> measured) {
+  <span class="code-keyword">float</span> error  = setpoint - measured;
+  <span class="code-keyword">float</span> delta = pid->Kp * (error - pid->last_error)
+                + pid->Ki * error
+                + pid->Kd * (error - <span class="code-number">2</span>*pid->last_error + pid->prev_error);
+  <span class="code-comment">// 注意：这里需要第三个历史误差 prev_error，结构体里要加一个字段</span>
+  pid->prev_error  = pid->last_error;
+  pid->last_error  = error;
+  <span class="code-keyword">return</span> delta;   <span class="code-comment">// 调用方：output += delta; 再对 output 限幅</span>
+}</div>
+
+          <h4 class="font-medium mt-4 mb-2">位置式 vs 增量式 选型对比</h4>
+          <div class="overflow-x-auto"><table class="compare-table">
+            <thead><tr><th>特性</th><th>位置式PID</th><th>增量式PID</th></tr></thead>
+            <tbody>
+              <tr><td class="font-medium">输出含义</td><td>绝对值（PWM、电压）</td><td>变化量（步进脉冲、Δ）</td></tr>
+              <tr><td class="font-medium">积分饱和</td><td>需额外抗饱和处理</td><td>天然无饱和</td></tr>
+              <tr><td class="font-medium">掉电冲击</td><td>需保存 integral</td><td>无累积，无冲击</td></tr>
+              <tr><td class="font-medium">故障影响</td><td>累积误差大</td><td>只影响一拍</td></tr>
+              <tr><td class="font-medium">典型应用</td><td>电流环、温度、舵机角度</td><td>步进电机、伺服位置</td></tr>
+            </tbody>
+          </table></div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">四、抗积分饱和（钳位法）</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            最实用的抗饱和方法是<strong>钳位法（Clamping）</strong>：只有当输出未饱和，或误差在帮助积分"回退"时，才允许积分累加。
+          </p>
+          <div class="code-block"><span class="code-keyword">float</span> <span class="code-func">PID_Position_Update_AW</span>(PID_t *pid, <span class="code-keyword">float</span> sp, <span class="code-keyword">float</span> meas) {
+  <span class="code-keyword">float</span> error = sp - meas;
+
+  <span class="code-comment">// 先不算积分，算出 P 和 D 项</span>
+  <span class="code-keyword">float</span> p_term = pid->Kp * error;
+  <span class="code-keyword">float</span> d_term = pid->Kd * (error - pid->last_error);
+
+  <span class="code-comment">// 试探性加上积分，看是否会导致饱和</span>
+  <span class="code-keyword">float</span> output_no_i = p_term + d_term;
+  <span class="code-keyword">float</span> i_candidate = pid->integral + error;
+
+  <span class="code-keyword">float</span> trial = output_no_i + pid->Ki * i_candidate;
+  <span class="code-keyword">int</span> saturated = (trial &gt; pid->out_max) || (trial &lt; pid->out_min);
+
+  <span class="code-comment">// 关键：仅在"未饱和"或"误差反向（能帮助脱离饱和）"时累积积分</span>
+  <span class="code-keyword">if</span> (!saturated || (error &gt; <span class="code-number">0</span> &amp;&amp; trial &lt; pid->out_min)
+                 || (error &lt; <span class="code-number">0</span> &amp;&amp; trial &gt; pid->out_max)) {
+    pid->integral = i_candidate;
+  }
+
+  <span class="code-keyword">float</span> output = p_term + pid->Ki * pid->integral + d_term;
+  <span class="code-keyword">if</span> (output &gt; pid->out_max) output = pid->out_max;
+  <span class="code-keyword">else if</span> (output &lt; pid->out_min) output = pid->out_min;
+
+  pid->last_error = error;
+  <span class="code-keyword">return</span> output;
+}</div>
+          <div class="info-box info mt-3">
+            <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <div>其它抗饱和方法：<strong>反算法（Back-calculation）</strong>把饱和量按系数反馈回积分项；<strong>跟踪法（Tracking）</strong>用独立时间常数让积分跟踪实际输出。钳位法实现简单、效果稳定，是工业首选。</div>
+          </div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">五、微分项低通滤波（抑制噪声）</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            微分项对高频噪声极度敏感（ADC毛刺会被放大成控制输出的剧烈跳变）。两个工程技巧：<strong>测量微分法</strong>（对测量值微分而非误差，避免设定值突变冲击）+ <strong>一阶低通滤波</strong>。
+          </p>
+          <div class="code-block"><span class="code-comment">/* 结构体增加字段：float d_filter_out; float alpha; */</span>
+
+<span class="code-keyword">float</span> <span class="code-func">PID_Update_Filtered</span>(PID_t *pid, <span class="code-keyword">float</span> sp, <span class="code-keyword">float</span> meas) {
+  <span class="code-keyword">float</span> error = sp - meas;
+  pid->integral += error;
+
+  <span class="code-comment">// 【关键】对"测量值"微分，而不是误差 —— 设定值跳变时不会冲击D项</span>
+  <span class="code-keyword">float</span> d_raw = -(meas - pid->last_meas);   <span class="code-comment">// 注意负号</span>
+
+  <span class="code-comment">// 一阶低通：alpha 越小滤波越强（典型 0.1~0.3）</span>
+  <span class="code-comment">// y[k] = alpha·x[k] + (1-alpha)·y[k-1]</span>
+  pid->d_filter_out = pid->alpha * d_raw
+                    + (<span class="code-number">1.0f</span> - pid->alpha) * pid->d_filter_out;
+
+  <span class="code-keyword">float</span> output = pid->Kp * error
+                + pid->Ki * pid->integral
+                + pid->Kd * pid->d_filter_out;
+
+  <span class="code-keyword">if</span> (output &gt; pid->out_max) output = pid->out_max;
+  <span class="code-keyword">else if</span> (output &lt; pid->out_min) output = pid->out_min;
+
+  pid->last_meas  = meas;
+  pid->last_error = error;
+  <span class="code-keyword">return</span> output;
+}</div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">六、定点PID（无FPU平台专用）</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            Cortex-M0/M0+/M3 没有硬件浮点单元，<code>float</code> 运算靠软件模拟，一次乘法要几十个时钟周期。用<strong>Q15定点数</strong>（用 int16_t 表示 -1~0.9999）可以提速 5-10 倍。
+          </p>
+          <div class="code-block"><span class="code-keyword">typedef struct</span> {
+  <span class="code-keyword">int16_t</span> Kp, Ki, Kd;       <span class="code-comment">// Q15 格式参数（-32768~32767 表示 -1.0~0.99997）</span>
+  <span class="code-keyword">int32_t</span> integral;        <span class="code-comment">// Q30 累积，避免溢出</span>
+  <span class="code-keyword">int16_t</span> last_error;      <span class="code-comment">// Q15 误差</span>
+  <span class="code-keyword">int16_t</span> out_max;         <span class="code-comment">// Q15 输出限幅</span>
+} PID_Q15_t;
+
+<span class="code-comment">/* Q15 乘法：两个 Q15 相乘得 Q30，右移15位回到 Q15 */</span>
+<span class="code-keyword">static inline int16_t</span> <span class="code-func">q15_mul</span>(<span class="code-keyword">int16_t</span> a, <span class="code-keyword">int16_t</span> b) {
+  <span class="code-keyword">return</span> (<span class="code-keyword">int16_t</span>)((<span class="code-keyword">int32_t</span>)a * b &gt;&gt; <span class="code-number">15</span>);
+}
+
+<span class="code-comment">/* 定点PID更新：所有运算用整数，零浮点开销 */</span>
+<span class="code-keyword">int16_t</span> <span class="code-func">PID_Q15_Update</span>(PID_Q15_t *pid, <span class="code-keyword">int16_t</span> sp, <span class="code-keyword">int16_t</span> meas) {
+  <span class="code-keyword">int16_t</span> error = sp - meas;          <span class="code-comment">// Q15 误差</span>
+  pid->integral += (<span class="code-keyword">int32_t</span>)error &lt;&lt; <span class="code-number">15</span>;   <span class="code-comment">// 累积到 Q30</span>
+
+  <span class="code-keyword">int16_t</span> p_term = <span class="code-func">q15_mul</span>(pid->Kp, error);
+  <span class="code-keyword">int16_t</span> i_term = <span class="code-func">q15_mul</span>(pid->Ki, (<span class="code-keyword">int16_t</span>)(pid->integral &gt;&gt; <span class="code-number">15</span>));
+  <span class="code-keyword">int16_t</span> d_term = <span class="code-func">q15_mul</span>(pid->Kd, (<span class="code-keyword">int16_t</span>)(error - pid->last_error));
+
+  <span class="code-keyword">int32_t</span> out = (<span class="code-keyword">int32_t</span>)p_term + i_term + d_term;
+  <span class="code-keyword">if</span> (out &gt; pid->out_max) out = pid->out_max;
+  <span class="code-keyword">if</span> (out &lt; -pid->out_max) out = -pid->out_max;
+
+  pid->last_error = error;
+  <span class="code-keyword">return</span> (<span class="code-keyword">int16_t</span>)out;
+}</div>
+          <div class="info-box info mt-3">
+            <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <div>定点数转换：<code>Kp_Q15 = (int16_t)(Kp_float × 32768)</code>。CMSIS-DSP 库已提供 <code>arm_pid_q15</code> 现成实现，原理相同。Cortex-M4F/M7 有硬件FPU，直接用浮点版即可。</div>
+          </div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">七、串级PID（机械臂/伺服的核心架构）</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            高性能运动控制用<strong>三个PID嵌套</strong>：外环的输出是内环的设定值。机械臂、伺服、无人机姿态控制都是这套结构。
+          </p>
+          <div class="step-list">
+            <div class="step-item"><div><strong>位置环（外环，最慢）</strong>：输入目标位置，输出目标速度。带宽 10~100Hz。</div></div>
+            <div class="step-item"><div><strong>速度环（中环）</strong>：输入目标速度，输出目标电流（力矩）。带宽 100~500Hz。</div></div>
+            <div class="step-item"><div><strong>电流环（内环，最快）</strong>：输入目标电流，输出PWM占空比。带宽 1~10kHz。</div></div>
+          </div>
+          <div class="code-block"><span class="code-keyword">PID_t</span> pid_pos, pid_vel, pid_cur;   <span class="code-comment">// 三个独立的PID实例</span>
+
+<span class="code-comment">/**
+ * 串级控制：在主中断里依次调用三个环
+ * @note 电流环频率最高（如10kHz），速度环/位置环可以降频（如1kHz）
+ */</span>
+<span class="code-keyword">void</span> <span class="code-func">Cascade_Control</span>(<span class="code-keyword">float</span> target_pos, <span class="code-keyword">float</span> cur_pos,
+                     <span class="code-keyword">float</span> cur_vel, <span class="code-keyword">float</span> cur_cur) {
+  <span class="code-comment">// 1. 位置环：算出目标速度（外环输出 = 内环设定值）</span>
+  <span class="code-keyword">float</span> target_vel = <span class="code-func">PID_Position_Update_AW</span>(&amp;pid_pos, target_pos, cur_pos);
+
+  <span class="code-comment">// 2. 速度环：算出目标电流</span>
+  <span class="code-keyword">float</span> target_cur = <span class="code-func">PID_Position_Update_AW</span>(&amp;pid_vel, target_vel, cur_vel);
+
+  <span class="code-comment">// 3. 电流环：算出PWM占空比，输出到定时器</span>
+  <span class="code-keyword">float</span> pwm = <span class="code-func">PID_Position_Update_AW</span>(&amp;pid_cur, target_cur, cur_cur);
+  <span class="code-func">Set_PWM_Duty</span>((<span class="code-keyword">uint16_t</span>)pwm);
+}</div>
+          <div class="info-box tip mt-3">
+            <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <div><strong>调试顺序：从内到外</strong>。先把电流环（内环）调到又快又稳，再调速度环，最后调位置环。内环带宽约为外环的5~10倍，否则外环变化太快内环跟不上。</div>
+          </div>
+
+          <h4 class="font-medium mt-6 mb-2">参数整定速查（电机场景）</h4>
+          <div class="overflow-x-auto"><table class="compare-table">
+            <thead><tr><th>参数</th><th>偏小</th><th>偏大</th><th>经验起始值</th></tr></thead>
+            <tbody>
+              <tr><td class="font-medium">Kp</td><td>响应慢、稳态误差大</td><td>超调、振荡</td><td>从0.1起，倍增至振荡后回退60%</td></tr>
+              <tr><td class="font-medium">Ki</td><td>稳态误差消不掉</td><td>超调、积分饱和</td><td>Ki = Kp / (控制周期×10)</td></tr>
+              <tr><td class="font-medium">Kd</td><td>超调大</td><td>噪声放大、高频抖动</td><td>电机电流环通常设0（用PI）</td></tr>
+            </tbody>
+          </table></div>
         `,
       },
       {
@@ -1466,6 +1731,12 @@ const QuizData = {
   'advanced-pid': [
     { question: 'PID中"I"（积分）项的主要作用是？', options: ['加快响应速度', '消除稳态误差', '抑制超调', '预测误差变化'], answer: 1, explanation: '积分项累积历史误差，当存在持续的稳态误差时，积分不断增大直到消除偏差。但可能导致积分饱和。' },
     { question: '电机电流环控制通常使用什么控制器？', options: ['PID', 'PI', 'PD', 'P'], answer: 1, explanation: '由于电流采样噪声较大，微分项(D)会放大噪声，因此电机电流环几乎都只使用PI控制。' },
+  ],
+  'advanced-pid-impl': [
+    { question: '相比位置式PID，增量式PID的主要优势是？', options: ['响应速度更快', '天然无积分饱和问题、掉电无冲击', '计算量更小', '不需要微分项'], answer: 1, explanation: '增量式输出的是Δu而非累积绝对值，没有 integral 累加器，因此不会积分饱和；掉电重启也不会有累积值冲击，特别适合步进电机。代价是调用方要自己累加输出。' },
+    { question: '积分饱和（Windup）会导致什么现象？', options: ['稳态误差变大', '执行机构饱和时积分持续累积，误差反向后需要很久才能"卸下来"，导致严重超调', '系统完全失控振荡', '微分项被放大'], answer: 1, explanation: '当输出到达限幅（如PWM满量程）后，若积分仍在累加，误差反向时积分项已变得很大，需要长时间才能减下来，表现为"超调大、恢复慢"。钳位法通过停止饱和时的积分累加来解决。' },
+    { question: 'Q15定点PID最适合用在哪种平台？', options: ['STM32F4 (Cortex-M4F，有FPU)', 'STM32F103 (Cortex-M3，无FPU)', 'ESP32 (双核，有FPU)', '树莓派 (Linux)', ], answer: 1, explanation: 'Cortex-M0/M0+/M3 没有硬件浮点单元，float 运算靠软件模拟（几十个时钟周期）。Q15用int16运算可提速5-10倍。有FPU的M4F/M7直接用浮点版即可。' },
+    { question: '三环串级PID（位置-速度-电流）的正确调试顺序是？', options: ['从位置环到电流环（外到内）', '从电流环到位置环（内到外）', '三环同时调试', '随机顺序都行'], answer: 1, explanation: '必须先调内环（电流环），保证它又快又稳后，外环（速度环）才有可靠的"执行器"；再调速度环；最后调最外的位置环。内环带宽约为外环的5~10倍。' },
   ],
   'advanced-foc': [
     { question: 'FOC控制中，通常将Id设为多少？', options: ['最大值', '0', '与Iq相等', '负值'], answer: 1, explanation: '在表贴式永磁电机（SPM）中，设Id=0可以实现最大转矩/电流比（MTPA），因为磁场已由永磁体提供。' },
