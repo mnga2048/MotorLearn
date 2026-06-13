@@ -32,6 +32,7 @@ const MotorData = {
         { id: 'hobby-servo', label: '舵机' },
       ]
     },
+    { id: 'industry', label: '电机行业', icon: 'briefcase', badge: '行业', badgeClass: 'badge-tool' },
     { id: 'roadmap', label: '学习路径', icon: 'map', badge: '导航', badgeClass: 'badge-tool' },
     { id: 'tools', label: '工具箱', icon: 'wrench', badge: '工具', badgeClass: 'badge-tool' },
   ],
@@ -44,6 +45,7 @@ const MotorData = {
     cpu: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M15 2v2M15 20v2M2 15h2M2 9h2M20 15h2M20 9h2M9 2v2M9 20v2"/></svg>',
     map: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>',
     wrench: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>',
+    briefcase: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/><path d="M2 13h20"/></svg>',
     zap: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
   },
 
@@ -584,84 +586,170 @@ const MotorData = {
       ],
     },
     'stepper': {
-      title: '步进电机',
-      subtitle: '精确位置控制的开环之选',
+      title: '步进电机 (Stepper Motor)',
+      subtitle: '精确位置控制的核心执行器，3D打印和CNC的标准选择',
       icon: '🎯',
       color: 'red',
-      overview: '步进电机（Stepper Motor）是一种将电脉冲信号转换为精确角位移的执行器。每输入一个脉冲，电机就转动一个固定的角度（步距角）。无需位置反馈即可实现精确位置控制，是3D打印机、CNC数控机床、自动化设备的标准执行元件。',
-      specs: { voltage: '5-48V', speed: '0-1000+ RPM', stepAngle: '1.8°(常见)', control: '脉冲/方向', positioning: '开环精确' },
+      overview: '步进电机（Stepper Motor）将电脉冲信号转换为精确角位移。每输入一个脉冲，电机转动一个固定角度（步距角），无需编码器即可实现开环精确定位。是3D打印机、CNC数控机床、自动化设备中使用量最大的电机类型。对于单片机开发者来说，步进电机的控制最为简单——只需输出方波脉冲和方向电平。',
+      specs: { voltage: '5-48V(常用12/24V)', speed: '0-1000+ RPM', stepAngle: '1.8°(200步/转)', holdingTorque: '0.4-4.5 N·m', control: '脉冲+方向', positioning: '开环精确' },
       sections: [
         { title: '工作原理与分类', content: `
-          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-3">步进电机通过依次给定子绕组通电，使转子一步一步地旋转到对应位置。</p>
-          <ul class="list-disc pl-5 space-y-2 text-gray-600 dark:text-gray-400">
-            <li><strong>反应式（VR）</strong>：转子为软磁材料，成本低但扭矩小</li>
-            <li><strong>永磁式（PM）</strong>：转子为永磁体，步距角大（7.5°/15°）</li>
-            <li><strong>混合式（HB）</strong>：结合前两者优点，步距角小（1.8°/0.9°）、扭矩大，应用最广</li>
-          </ul>
+          <p>步进电机通过依次给定子绕组通电，产生"步进式"旋转。其核心特征是：<strong>每步转过的角度固定</strong>，通过计算脉冲数量即可精确控制位置。</p>
+          <h4 class="font-medium mt-4 mb-2">三大类型</h4>
+          <div class="overflow-x-auto mb-3"><table class="compare-table">
+            <thead><tr><th>类型</th><th>步距角</th><th>扭矩</th><th>成本</th><th>适用</th></tr></thead>
+            <tbody>
+              <tr><td><strong>反应式(VR)</strong></td><td>7.5°~15°</td><td>低</td><td>最低</td><td>钟表、仪表</td></tr>
+              <tr><td><strong>永磁式(PM)</strong></td><td>7.5°~15°</td><td>中</td><td>低</td><td>玩具风扇</td></tr>
+              <tr><td><strong>混合式(HB)</strong></td><td><strong>1.8°</strong>/0.9°</td><td><strong>高</strong></td><td>中</td><td><strong>3D打印/CNC（主流）</strong></td></tr>
+            </tbody>
+          </table></div>
+          <div class="info-box tip mt-3"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg><div>混合式步进电机(Hybrid)结合了永磁体的高扭矩和磁阻式的高精度，<strong>1.8°步距角（200步/转）</strong>是行业标准，NEMA17(42mm法兰)是最通用的规格。</div></div>
         `},
-        { title: '驱动方式', content: `
-          <div class="overflow-x-auto mb-3">
-            <table class="compare-table">
-              <thead><tr><th>模式</th><th>步距角</th><th>精度</th><th>说明</th></tr></thead>
-              <tbody>
-                <tr><td>整步（Full Step）</td><td>1.8°</td><td>低</td><td>最简单，一相或两相同时通电</td></tr>
-                <tr><td>半步（Half Step）</td><td>0.9°</td><td>中</td><td>整步和半步交替，精度翻倍</td></tr>
-                <tr><td>细分（Microstepping）</td><td>可编程</td><td>高</td><td>用正弦电流驱动，最高1/256细分</td></tr>
-              </tbody>
-            </table>
-          </div>
+        { title: '驱动方式与细分', content: `
+          <div class="overflow-x-auto mb-3"><table class="compare-table">
+            <thead><tr><th>模式</th><th>等效步距角</th><th>精度</th><th>扭矩</th><th>噪音</th></tr></thead>
+            <tbody>
+              <tr><td>整步(Full Step)</td><td>1.8°</td><td>低</td><td>100%</td><td>大</td></tr>
+              <tr><td>半步(Half Step)</td><td>0.9°</td><td>中</td><td>~70%</td><td>中</td></tr>
+              <tr><td>1/4细分(Micro-16)</td><td>0.1125°</td><td>高</td><td>~50%</td><td>小</td></tr>
+              <tr><td>1/16细分(Micro-256)</td><td>0.007°</td><td>极高</td><td>~40%</td><td><strong>极小</strong></td></tr>
+            </tbody>
+          </table></div>
+          <div class="info-box warning mt-3"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg><div><strong>细分不是免费的</strong>：细分越高，扭矩越小（约按1/√细分成比例衰减）。1/16细分后扭矩约为整步的50%。选细分时需要在<strong>精度</strong>和<strong>扭矩</strong>之间权衡。</div></div>
         `},
-        { title: '常用驱动模块', content: `
-          <div class="overflow-x-auto">
-            <table class="compare-table">
-              <thead><tr><th>模块</th><th>细分</th><th>特点</th></tr></thead>
-              <tbody>
-                <tr><td>A4988</td><td>1/16</td><td>最常用步进驱动，3D打印机标配</td></tr>
-                <tr><td>DRV8825</td><td>1/32</td><td>电流更大，细分更细</td></tr>
-                <tr><td>TMC2209</td><td>1/256</td><td>静音驱动首选，StallGuard堵转检测</td></tr>
-              </tbody>
-            </table>
+        { title: '选型参数详解', content: `
+          <p>选型步进电机，以下参数是关键决策依据：</p>
+          <div class="overflow-x-auto"><table class="compare-table">
+            <thead><tr><th>参数</th><th>说明</th><th>选型经验</th></tr></thead>
+            <tbody>
+              <tr><td><strong>保持转矩</strong></td><td>通电静止时的最大转矩(N·m)</td><td>≥负载转矩的 1.5~2 倍</td></tr>
+              <tr><td><strong>额定电流</strong></td><td>每相额定工作电流(A)</td><td>需与驱动器限流匹配</td></tr>
+              <tr><td><strong>相电阻/相电感</strong></td><td>每相绕组的R和L</td><td>R越小铜损低效率高</td></tr>
+              <tr><td><strong>引出线</strong></td><td>4线(串联)/6线/8线</td><td>4线最常用，接法简单</td></tr>
+              <tr><td><strong>法兰尺寸</strong></td><td>NEMA标准安装孔位</td><td>42mm(NEMA17)最通用</td></tr>
+            </tbody>
+          </table></div>
+        `},
+        { title: '常用驱动模块选型', content: `
+          <div class="overflow-x-auto"><table class="compare-table">
+            <thead><tr><th>模块</th><th>最大细分</th><th>电流</th><th>特点</th><th>价格</th><th>适用</th></tr></thead>
+            <tbody>
+              <tr><td><strong>A4988</strong></td><td>1/16</td><td>2A</td><td>最常用、3D打印标配</td><td>~5元</td><td>入门学习</td></tr>
+              <tr><td>DRV8825</td><td>1/32</td><td>2.5A</td><td>更大电流、更细细分</td><td>~8元</td><td>中型设备</td></tr>
+              <tr><td><strong>TMC2209</strong></td><td>1/256</td><td>2A</td><td>静音首选，StallGuard堵转检测</td><td>~15元</td><td>静音应用</td></tr>
+              <tr><td>TMC5160</td><td>1/256</td><td>3A</td><td>高性能，CoolStep节能</td><td>~40元</td><td>高端设备</td></tr>
+              <tr><td>TB6600</td><td>1/16</td><td>4A</td><td>大功率，拨码开关</td><td>~30元</td><td>NEMA23大电机</td></tr>
+            </tbody>
+          </table></div>
+          <div class="info-box info mt-3"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>A4988 Vref调节</strong>：驱动板上的Vref电位器控制电流上限。Vref = 额定电流 × 0.8。例如42电机1.2A额定，则Vref调至约0.96V。</div></div>
+        `},
+        { title: '选型流程（工程实践）', content: `
+          <div class="step-list">
+            <div><strong>1. 计算负载转矩</strong>：直线运动 T=F×r，旋转运动 T=J×α</div>
+            <div><strong>2. 选择保持转矩</strong>：T_motor ≥ 1.5~2 × T_load</div>
+            <div><strong>3. 确认矩频特性</strong>：在目标转速下扭矩仍满足要求</div>
+            <div><strong>4. 匹配驱动电压</strong>：电压越高高速扭矩越大（24V > 12V）</div>
+            <div><strong>5. 选择细分数</strong>：精度要求高选高细分，但注意扭矩衰减</div>
+            <div><strong>6. 确认安装尺寸</strong>：NEMA标准法兰匹配</div>
           </div>
         `},
         { title: '优缺点', content: `
           <div class="grid grid-cols-2 gap-4">
-            <div><h5 class="font-medium text-green-600 mb-2">优点</h5>
-              <ul class="list-disc pl-5 text-sm space-y-1 text-gray-600 dark:text-gray-400">
-                <li>无需反馈即可精确定位</li><li>开环控制、成本低</li><li>低速扭矩大</li><li>控制简单（脉冲信号）</li>
+            <div><h5 class="font-medium mb-2" style="color:var(--success)">优点</h5>
+              <ul class="list-disc pl-5 text-sm space-y-1" style="color:var(--text-secondary)">
+                <li>无需编码器即可精确定位（开环）</li><li>控制最简单——只需脉冲+方向两个GPIO</li><li>低速扭矩大</li><li>成本低（电机本体5-50元）</li>
               </ul></div>
-            <div><h5 class="font-medium text-red-600 mb-2">缺点</h5>
-              <ul class="list-disc pl-5 text-sm space-y-1 text-gray-600 dark:text-gray-400">
-                <li>高速扭矩下降快</li><li>可能丢步（过载）</li><li>效率较低、发热大</li><li>噪音明显（未细分时）</li>
+            <div><h5 class="font-medium mb-2" style="color:var(--danger)">缺点</h5>
+              <ul class="list-disc pl-5 text-sm space-y-1" style="color:var(--text-secondary)">
+                <li>高速时扭矩急剧下降（矩频特性）</li><li>过载会丢步（无法检测，可能毁坏工件）</li><li>效率较低(50-80%)、发热大</li><li>有共振频率（避开该速度区域运行）</li>
               </ul></div>
           </div>
         `},
         { title: '应用场景', content: `
-          <ul class="list-disc pl-5 space-y-1 text-gray-600 dark:text-gray-400">
-            <li>3D打印机（X/Y/Z轴、挤出机）</li><li>CNC数控机床</li><li>自动窗帘、自动门</li><li>纺织机械、包装机械</li><li>医疗设备（注射泵、分析仪）</li>
-          </ul>
+          <div class="overflow-x-auto"><table class="compare-table">
+            <thead><tr><th>应用</th><th>常用电机</th><th>典型驱动</th></tr></thead>
+            <tbody>
+              <tr><td>3D打印机(X/Y/Z轴)</td><td>42mm(NEMA17), 0.4-0.55N·m</td><td>A4988 / TMC2209</td></tr>
+              <tr><td>CNC雕刻机</td><td>42mm/57mm(NEMA23), 1.2-2.8N·m</td<td>TB6600 / TMC5160</td></tr>
+              <tr><td>自动窗帘/门</td><td>42mm, 0.4N·m</td><td>ULN2003</td></tr>
+              <tr><td>医疗注射泵</td><td>专用微型步进</td><td>TMC2209(静音)</td></tr>
+              <tr><td>纺织/包装机械</td><td>57mm/86mm</td><td>TB6600</td></tr>
+            </tbody>
+          </table></div>
         `},
-        { title: '实战：Arduino控制', content: `
-          <div class="code-block"><span class="code-comment">// Arduino + A4988 驱动步进电机</span>
-<span class="code-keyword">const int</span> DIR = 2;   <span class="code-comment">// 方向引脚</span>
-<span class="code-keyword">const int</span> STEP = 3; <span class="code-comment">// 步进脉冲引脚</span>
-<span class="code-keyword">const int</span> STEPS_REV = 200; <span class="code-comment">// 1.8°步距角 = 200步/转</span>
+        { title: '实战：STM32 HAL库 C语言控制', content: `
+          <p>MCU控制步进电机是最基础也最常用的场景。下面是<strong>STM32 HAL库</strong>驱动42步进电机 + A4988驱动板的完整代码。</p>
+          <h4 class="font-medium mt-3 mb-2">硬件接线</h4>
+          <div class="code-block">STM32          A4988
+PA0 (GPIO) --> STEP  (步进脉冲)
+PA1 (GPIO) --> DIR   (方向控制)
+PA2 (GPIO) --> EN    (使能，低电平有效，可接地常使能)
+VMOT --> 12V+    (电机电源)
+GND  --> GND     (STM32与A4988必须共地!)</div>
+          <h4 class="font-medium mt-3 mb-2">驱动代码（完整可编译）</h4>
+          <div class="code-block"><span class="code-comment">/* 步进电机参数定义 */</span>
+<span class="code-keyword">#define</span> STEPS_PER_REV     200
+<span class="code-keyword">#define</span> MICROSTEPPING     16    <span class="code-comment">/* A4988 MS1=MS2=MS3=HIGH = 1/16细分 */</span>
+<span class="code-keyword">#define</span> TOTAL_STEPS_REV   (STEPS_PER_REV * MICROSTEPPING)  <span class="code-comment">/* 3200步/转 */</span>
 
-<span class="code-keyword">void</span> <span class="code-func">setup</span>() {
-  pinMode(DIR, OUTPUT);
-  pinMode(STEP, OUTPUT);
+<span class="code-keyword">typedef struct</span> {
+    GPIO_TypeDef *step_port; uint16_t step_pin;
+    GPIO_TypeDef *dir_port;  uint16_t dir_pin;
+    uint8_t  direction;
+    int32_t  current_pos;
+    uint32_t step_delay;  <span class="code-comment">/* us/步, 控制速度 */</span>
+} StepperMotor_t;
+
+<span class="code-comment">/* 初始化 */</span>
+<span class="code-keyword">void</span> <span class="code-func">Stepper_Init</span>(StepperMotor_t *m,
+    GPIO_TypeDef *s_port, uint16_t s_pin,
+    GPIO_TypeDef *d_port, uint16_t d_pin)
+{
+    m->step_port = s_port; m->step_pin = s_pin;
+    m->dir_port  = d_port; m->dir_pin  = d_pin;
+    m->direction = 0; m->current_pos = 0;
+    m->step_delay = 500; <span class="code-comment">/* 默认500us/步 */</span>
+    <span class="code-comment">/* 使能驱动(低电平有效) */</span>
+    HAL_GPIO_WritePin(EN_PORT, EN_PIN, GPIO_PIN_RESET);
 }
 
-<span class="code-keyword">void</span> <span class="code-func">loop</span>() {
-  <span class="code-comment">// 正转一圈</span>
-  digitalWrite(DIR, HIGH);
-  <span class="code-keyword">for</span>(<span class="code-keyword">int</span> i = 0; i < STEPS_REV; i++) {
-    digitalWrite(STEP, HIGH);
-    delayMicroseconds(1000); <span class="code-comment">// 脉冲宽度</span>
-    digitalWrite(STEP, LOW);
-    delayMicroseconds(1000);
-  }
-  delay(1000);
+<span class="code-comment">/* 设置速度(RPM) */</span>
+<span class="code-keyword">void</span> <span class="code-func">Stepper_SetSpeed</span>(StepperMotor_t *m, <span class="code-keyword">float</span> rpm)
+{
+    <span class="code-keyword">if</span> (rpm <= 0) rpm = 1;
+    <span class="code-keyword">float</span> steps_per_sec = rpm * TOTAL_STEPS_REV / 60.0f;
+    m->step_delay = (uint32_t)(1000000.0f / steps_per_sec / 2.0f);
+    <span class="code-keyword">if</span> (m->step_delay < 5) m->step_delay = 5;
+}
+
+<span class="code-comment">/* 发送一个脉冲 */</span>
+<span class="code-keyword">static void</span> <span class="code-func">StepPulse</span>(StepperMotor_t *m)
+{
+    HAL_GPIO_WritePin(m->step_port, m->step_pin, GPIO_PIN_SET);
+    delay_us(m->step_delay);
+    HAL_GPIO_WritePin(m->step_port, m->step_pin, GPIO_PIN_RESET);
+    delay_us(m->step_delay);
+}
+
+<span class="code-comment">/* 按步数运动 */</span>
+<span class="code-keyword">void</span> <span class="code-func">Stepper_MoveSteps</span>(StepperMotor_t *m, int32_t steps)
+{
+    <span class="code-keyword">uint32_t</span> abs_steps = (steps >= 0) ? steps : (-steps);
+    HAL_GPIO_WritePin(m->dir_port, m->dir_pin,
+        (steps >= 0) ? GPIO_PIN_RESET : GPIO_PIN_SET);
+    <span class="code-keyword">for</span> (<span class="code-keyword">uint32_t</span> i = 0; i < abs_steps; i++) {
+        StepPulse(m);
+    }
+}
+
+<span class="code-comment">/* 按角度运动 */</span>
+<span class="code-keyword">void</span> <span class="code-func">Stepper_MoveDegrees</span>(StepperMotor_t *m, <span class="code-keyword">float</span> deg)
+{
+    int32_t steps = (int32_t)(deg * TOTAL_STEPS_REV / 360.0f);
+    Stepper_MoveSteps(m, steps);
 }</div>
+          <div class="info-box tip mt-3"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg><div><strong>注意事项</strong>：① STM32 GND与A4988 GND必须连接（共地）。② A4988上MS1/MS2/MS3全拉高=1/16细分。③ Vref电位器用万用表调至0.96V（对应1.2A限制）。④ 高速启动可能丢步，应做加减速。</div></div>
         `},
       ],
     },
@@ -718,75 +806,515 @@ const MotorData = {
     },
     'hobby-servo': {
       title: '舵机 (Hobby Servo)',
-      subtitle: '内置控制电路的位置执行器',
+      subtitle: 'PWM驱动的位置控制执行器',
       icon: '📡',
       color: 'orange',
-      overview: '舵机是简化版的伺服系统，内置了控制电路、直流电机、减速齿轮组和位置反馈电位器。通过PWM信号控制旋转角度，通常在0°-180°范围内精确定位。是遥控模型、小型机器人最常用的执行元件。',
-      specs: { voltage: '4.8-7.2V', speed: '0.1-0.3s/60°', torque: '1.2-25 kg·cm(常见)', range: '0-180°(标准)', control: 'PWM(50Hz)', weight: '9-55g(常见)' },
+      overview: '舵机（RC Servo）是集成了直流电机、减速齿轮组、位置反馈电位器和控制电路的一体化位置执行器。通过单根PWM信号线即可控制旋转角度，是机器人关节、遥控模型中最常用的定位元件。STM32单片机通过定时器输出50Hz PWM波即可精确控制舵机角度。',
+      specs: { voltage: '4.8-7.2V', speed: '0.05-0.3s/60°', torque: '1.2-25 kg·cm', range: '0-180°(标准)/360°(连续)', control: 'PWM(50Hz, 0.5-2.5ms)', weight: '9-60g(常见)' },
       sections: [
-        { title: '工作原理', content: `
-          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-3">舵机内部包含：<strong>直流电机</strong>、<strong>减速齿轮组</strong>、<strong>位置反馈电位器</strong>、<strong>控制电路</strong>。</p>
-          <p class="text-gray-600 dark:text-gray-400 leading-relaxed">接收50Hz的PWM信号（周期20ms），脉冲宽度1ms-2ms对应0°-180°。内部控制电路比较目标位置（PWM信号）和实际位置（电位器），通过内部闭环驱动电机转到目标角度。</p>
-        `},
-        { title: '分类', content: `
-          <ul class="space-y-2 text-gray-600 dark:text-gray-400">
-            <li><strong>标准舵机</strong>：0°-180°旋转，如SG90(9g)、MG996R(55g)</li>
-            <li><strong>连续旋转舵机</strong>：可360°连续旋转，PWM控制转速和方向</li>
-            <li><strong>总线舵机</strong>：串行总线通信，可级联多个，支持反馈读取</li>
-          </ul>
-        `},
-        { title: '常见型号', content: `
-          <div class="overflow-x-auto">
+        { title: '系统组成与工作原理', content: `
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-3">舵机内部是一个完整的<strong>闭环位置控制系统</strong>，由以下四个核心部件组成：</p>
+          <div class="overflow-x-auto mb-4">
             <table class="compare-table">
-              <thead><tr><th>型号</th><th>重量</th><th>扭矩</th><th>速度</th><th>价格</th></tr></thead>
+              <thead><tr><th>部件</th><th>功能</th><th>说明</th></tr></thead>
               <tbody>
-                <tr><td>SG90</td><td>9g</td><td>1.6 kg·cm</td><td>0.1s/60°</td><td>~¥5</td></tr>
-                <tr><td>MG90S</td><td>13g</td><td>2.2 kg·cm</td><td>0.1s/60°</td><td>~¥10</td></tr>
-                <tr><td>MG996R</td><td>55g</td><td>11 kg·cm</td><td>0.2s/60°</td><td>~¥15</td></tr>
-                <tr><td>DS3218</td><td>60g</td><td>20 kg·cm</td><td>0.16s/60°</td><td>~¥20</td></tr>
+                <tr><td><strong>直流电机</strong></td><td>提供动力</td><td>小型永磁直流电机，5-6V供电</td></tr>
+                <tr><td><strong>减速齿轮组</strong></td><td>降速增扭</td><td>3-6级齿轮减速，减速比50:1~300:1</td></tr>
+                <tr><td><strong>电位器</strong></td><td>位置反馈</td><td>与输出轴同轴，输出0-VCC的模拟电压</td></tr>
+                <tr><td><strong>控制电路</strong></td><td>误差比较</td><td>比较PWM目标值与电位器实际值，驱动电机</td></tr>
               </tbody>
             </table>
           </div>
+          <div class="p-4 rounded-lg" style="background:var(--bg-secondary)">
+            <p class="text-sm font-medium mb-2">控制原理（内部闭环）：</p>
+            <p class="text-sm text-gray-600 dark:text-gray-400">PWM信号 → 控制电路读取脉冲宽度（目标角度） → 与电位器电压比较（实际角度） → 差值驱动H桥正反转 → 电机转动带动齿轮组 → 电位器同步转动 → 差值为零时停止</p>
+          </div>
         `},
-        { title: '优缺点', content: `
+        { title: 'PWM时序详解', content: `
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-3">舵机使用<strong>50Hz PWM信号</strong>（周期20ms），通过脉冲宽度来编码目标角度。这是RC遥控领域的标准协议。</p>
+          <div class="overflow-x-auto mb-4">
+            <table class="compare-table">
+              <thead><tr><th>脉冲宽度 (ms)</th><th>对应角度</th><th>占空比</th><th>STM32 CCR值(ARR=999)</th></tr></thead>
+              <tbody>
+                <tr><td>0.5</td><td>0°</td><td>2.5%</td><td>25</td></tr>
+                <tr><td>1.0</td><td>45°</td><td>5.0%</td><td>50</td></tr>
+                <tr><td>1.5</td><td>90°（中位）</td><td>7.5%</td><td>75</td></tr>
+                <tr><td>2.0</td><td>135°</td><td>10.0%</td><td>100</td></tr>
+                <tr><td>2.5</td><td>180°</td><td>12.5%</td><td>125</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="p-3 rounded-lg mb-3" style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3)">
+            <p class="text-sm"><strong>工程要点：</strong>CCR值计算公式：<code>CCR = (脉冲宽度ms / 20ms) × ARR</code>。例如1.5ms → (1.5/20) × 999 = 74.9 ≈ 75</p>
+          </div>
+          <div class="p-3 rounded-lg" style="background:rgba(234,179,8,0.1);border:1px solid rgba(234,179,8,0.3)">
+            <p class="text-sm"><strong>注意：</strong>部分舵机实际响应范围为0.5-2.5ms（大角度舵机可达270°），传统1.0-2.0ms范围仅有90°左右可用角度。使用前务必查阅数据手册确认实际脉宽范围。</p>
+          </div>
+        `},
+        { title: '舵机分类详解', content: `
+          <div class="overflow-x-auto mb-4">
+            <table class="compare-table">
+              <thead><tr><th>类型</th><th>旋转范围</th><th>控制方式</th><th>反馈</th><th>代表型号</th><th>适用场景</th></tr></thead>
+              <tbody>
+                <tr><td><strong>标准模拟舵机</strong></td><td>0-180°</td><td>PWM脉宽</td><td>无（内部）</td><td>SG90, MG996R</td><td>遥控模型、简单关节</td></tr>
+                <tr><td><strong>数字舵机</strong></td><td>0-180°/270°</td><td>PWM脉宽</td><td>无（内部）</td><td>DS3218, S3305</td><td>机械臂、高精度场景</td></tr>
+                <tr><td><strong>连续旋转舵机</strong></td><td>360°连续</td><td>PWM控制转向+转速</td><td>无</td><td>FEETECH FS90R</td><td>小车驱动轮</td></tr>
+                <tr><td><strong>总线舵机</strong></td><td>0-360°</td><td>串行协议(半双工UART)</td><td>位置/速度/温度</td><td>Dynamixel AX-12A</td><td>仿生机器人、多自由度</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="text-gray-600 dark:text-gray-400 text-sm mb-2"><strong>模拟 vs 数字舵机核心区别：</strong></p>
+          <ul class="text-sm text-gray-600 dark:text-gray-400 space-y-1 mb-3">
+            <li>模拟舵机：控制电路用模拟比较器，PWM仅在脉冲期间有效，响应速度和精度一般</li>
+            <li>数字舵机：内部MCU以300Hz（6倍）频率刷新驱动，死区更小、响应更快、定位精度更高、静止力更大</li>
+          </ul>
+          <p class="text-gray-600 dark:text-gray-400 text-sm"><strong>总线舵机优势：</strong>单线串联最多254个（Dynamixel），可读取位置/速度/负载/温度反馈，支持PID参数调节，通信协议支持指令式位置/速度/扭矩控制。</p>
+        `},
+        { title: '选型参数详解', content: `
+          <div class="overflow-x-auto mb-4">
+            <table class="compare-table">
+              <thead><tr><th>参数</th><th>含义</th><th>选型建议</th></tr></thead>
+              <tbody>
+                <tr><td><strong>扭矩 (kg·cm)</strong></td><td>在力臂1cm处能承受的最大力</td><td>留2倍余量；机械臂选≥15kg·cm，简单转向选2-6kg·cm</td></tr>
+                <tr><td><strong>速度 (s/60°)</strong></td><td>转到60°所需时间</td><td>越小越快；实时场景要求≤0.15s/60°</td></tr>
+                <tr><td><strong>工作电压 (V)</strong></td><td>额定供电电压</td><td>4.8V/6.0V/7.2V三档；电压高→扭矩大、速度快</td></tr>
+                <tr><td><strong>旋转角度 (°)</strong></td><td>最大旋转范围</td><td>标准180°，大角度270°，连续旋转360°</td></tr>
+                <tr><td><strong>齿轮材质</strong></td><td>减速齿轮的材料</td><td>塑料→轻但易断；金属→耐用但重且贵</td></tr>
+                <tr><td><strong>轴承类型</strong></td><td>输出轴支撑方式</td><td>铜套→便宜；滚珠轴承→寿命长、摩擦小</td></tr>
+                <tr><td><strong>死区宽度</strong></td><td>能响应的最小PWM变化</td><td>数字舵机死区＜1μs，模拟舵机约5-10μs</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="p-3 rounded-lg" style="background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.3)">
+            <p class="text-sm"><strong>扭矩与力臂的关系：</strong>实际可用扭矩 = 额定扭矩 / 力臂(cm)。例如MG996R额定11kg·cm，当力臂为5cm时仅能承受 11/5 = 2.2kg 的负载。设计机械臂时务必计算最不利工况。</p>
+          </div>
+        `},
+        { title: '常见型号对比', content: `
+          <div class="overflow-x-auto mb-4">
+            <table class="compare-table">
+              <thead><tr><th>型号</th><th>重量</th><th>扭矩(6V)</th><th>速度</th><th>角度</th><th>齿轮</th><th>价格</th><th>推荐场景</th></tr></thead>
+              <tbody>
+                <tr><td><strong>SG90</strong></td><td>9g</td><td>1.8 kg·cm</td><td>0.1s/60°</td><td>180°</td><td>塑料</td><td>~¥5</td><td>验证原型、微型项目</td></tr>
+                <tr><td><strong>MG90S</strong></td><td>13g</td><td>2.5 kg·cm</td><td>0.11s/60°</td><td>180°</td><td>金属</td><td>~¥10</td><td>小型机械臂</td></tr>
+                <tr><td><strong>MG996R</strong></td><td>55g</td><td>11 kg·cm</td><td>0.19s/60°</td><td>180°</td><td>金属(铜)</td><td>~¥18</td><td>六足机器人、机械臂</td></tr>
+                <tr><td><strong>DS3218</strong></td><td>60g</td><td>20 kg·cm</td><td>0.16s/60°</td><td>270°</td><td>金属</td><td>~¥22</td><td>高精度机械臂</td></tr>
+                <tr><td><strong>S3305</strong></td><td>60g</td><td>15 kg·cm</td><td>0.13s/60°</td><td>180°</td><td>金属+滚珠</td><td>~¥45</td><td>竞赛级机器人</td></tr>
+                <tr><td><strong>AX-12A</strong></td><td>54g</td><td>15 kg·cm</td><td>0.15s/60°</td><td>300°</td><td>金属+总线</td><td>~¥250</td><td>仿生机器人(总线)</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="text-sm text-gray-600 dark:text-gray-400">提示：扭矩标注通常基于6V供电和4.8V测试电压两个标准，选型时注意区分。7.2V供电扭矩可提升约30%。</p>
+        `},
+        { title: '优缺点分析', content: `
           <div class="grid grid-cols-2 gap-4">
             <div><h5 class="font-medium text-green-600 mb-2">优点</h5>
               <ul class="list-disc pl-5 text-sm space-y-1 text-gray-600 dark:text-gray-400">
-                <li>即插即用、控制极简</li><li>内置闭环、定位精确</li><li>体积小、价格低</li><li>减速齿轮增扭</li>
+                <li>单线控制，接口极简（GND/VCC/SIG）</li><li>内置闭环，无需外部反馈</li><li>体积紧凑、功耗低</li><li>价格低廉，入门友好</li><li>减速齿轮提供大扭矩输出</li>
               </ul></div>
             <div><h5 class="font-medium text-red-600 mb-2">缺点</h5>
               <ul class="list-disc pl-5 text-sm space-y-1 text-gray-600 dark:text-gray-400">
-                <li>角度有限（通常180°）</li><li>扭矩较小</li><li>精度有限（电位器反馈）</li><li>塑料齿轮可能断裂</li>
+                <li>角度受限（标准180°，难以做完整旋转）</li><li>电位器磨损导致精度漂移</li><li>无位置反馈输出（无法读取实际角度）</li><li>塑料齿轮过载易断裂</li><li>堵转电流大，需独立供电</li>
               </ul></div>
           </div>
         `},
-        { title: '应用场景', content: `
-          <ul class="list-disc pl-5 space-y-1 text-gray-600 dark:text-gray-400">
-            <li>遥控模型（遥控车舵轮、飞机舵面）</li><li>机器人关节（六足机器人、机械臂）</li>
-            <li>遥控云台（摄像头转向）</li><li>智能小车转向</li>
-          </ul>
-        `},
-        { title: '实战：Arduino控制', content: `
-          <div class="code-block"><span class="code-comment">// Arduino 控制标准舵机（使用Servo库）</span>
-<span class="code-keyword">#include</span> &lt;Servo.h&gt;
+        { title: '实战：STM32 HAL C语言驱动', content: `
+          <p class="text-gray-600 dark:text-gray-400 text-sm mb-3">以下代码使用 STM32F4 的 TIM4 通道1 输出 50Hz PWM 控制舵机。MCU时钟84MHz，预分频后定时器频率 = 84MHz/(83+1) = 1MHz，ARR=19999 产生 50Hz 周期。CCR范围500-2500对应0.5-2.5ms脉宽。</p>
+          <div class="code-block"><span class="code-comment">/* ============================================
+ * 舵机驱动模块 - STM32 HAL库
+ * 定时器: TIM4 CH1 (PA0)
+ * PWM: 50Hz, 脉宽 0.5-2.5ms → 角度 0-180°
+ * ============================================ */</span>
 
-Servo myServo;
+<span class="code-keyword">#include</span> "stm32f4xx_hal.h"
 
-<span class="code-keyword">void</span> <span class="code-func">setup</span>() {
-  myServo.attach(9);  <span class="code-comment">// 舵机信号线接D9</span>
+<span class="code-comment">// 舵机参数宏定义</span>
+<span class="code-keyword">#define</span> SERVO_TIM         TIM4
+<span class="code-keyword">#define</span> SERVO_TIM_CH      TIM_CHANNEL_1
+<span class="code-keyword">#define</span> SERVO_TIM_FREQ    <span class="code-number">50</span>           <span class="code-comment">// Hz</span>
+<span class="code-keyword">#define</span> SERVO_PWM_MIN     <span class="code-number">500</span>          <span class="code-comment">// 0.5ms → 0°</span>
+<span class="code-keyword">#define</span> SERVO_PWM_MAX     <span class="code-number">2500</span>         <span class="code-comment">// 2.5ms → 180°</span>
+
+<span class="code-keyword">typedef struct</span> {
+  TIM_HandleTypeDef *htim;
+  <span class="code-keyword">uint32_t</span> channel;
+  <span class="code-keyword">float</span> current_angle;
+} Servo_t;
+
+<span class="code-comment">/**
+ * @brief 初始化舵机PWM定时器
+ * TIM4: PSC=83, ARR=19999 → 1MHz/20000 = 50Hz
+ */</span>
+<span class="code-keyword">void</span> <span class="code-func">Servo_Init</span>(Servo_t *servo, TIM_HandleTypeDef *htim, <span class="code-keyword">uint32_t</span> ch)
+{
+  servo->htim = htim;
+  servo->channel = ch;
+  servo->current_angle = <span class="code-number">90.0f</span>;
+
+  TIM_OC_InitTypeDef sConfigOC = {<span class="code-number">0</span>};
+  sConfigOC.OCMode     = TIM_OCMODE_PWM1;
+  sConfigOC.Pulse      = <span class="code-number">1500</span>;          <span class="code-comment">// 中位 1.5ms</span>
+  sConfigOC.OCPolarity  = TIM_OCPOLARITY_HIGH;
+  sConfigOC.OCFastMode   = TIM_OCFAST_DISABLE;
+  HAL_TIM_PWM_ConfigChannel(htim, &amp;sConfigOC, ch);
+
+  HAL_TIM_PWM_Start(htim, ch);
 }
 
-<span class="code-keyword">void</span> <span class="code-func">loop</span>() {
-  myServo.write(0);     <span class="code-comment">// 转到0°</span>
-  delay(1000);
-  myServo.write(90);    <span class="code-comment">// 转到90°（中位）</span>
-  delay(1000);
-  myServo.write(180);   <span class="code-comment">// 转到180°</span>
-  delay(1000);
+<span class="code-comment">/**
+ * @brief 角度 → CCR值映射
+ * 0° → 500, 90° → 1500, 180° → 2500
+ */</span>
+<span class="code-keyword">static uint32_t</span> <span class="code-func">Servo_AngleToCCR</span>(<span class="code-keyword">float</span> angle)
+{
+  <span class="code-keyword">if</span> (angle &lt; <span class="code-number">0</span>) angle = <span class="code-number">0</span>;
+  <span class="code-keyword">if</span> (angle &gt; <span class="code-number">180</span>) angle = <span class="code-number">180</span>;
+  <span class="code-keyword">return</span> (<span class="code-keyword">uint32_t</span>)(SERVO_PWM_MIN + angle * (SERVO_PWM_MAX - SERVO_PWM_MIN) / <span class="code-number">180.0f</span>);
+}
+
+<span class="code-comment">/**
+ * @brief 设置舵机角度 (0-180°)
+ */</span>
+<span class="code-keyword">void</span> <span class="code-func">Servo_SetAngle</span>(Servo_t *servo, <span class="code-keyword">float</span> angle)
+{
+  <span class="code-keyword">uint32_t</span> ccr = Servo_AngleToCCR(angle);
+  __HAL_TIM_SET_COMPARE(servo->htim, servo->channel, ccr);
+  servo->current_angle = angle;
+}
+
+<span class="code-comment">/**
+ * @brief 带平滑过渡的舵机控制
+ * @param step_ms 每步间隔(毫秒)
+ * @param step_deg 每步角度增量
+ */</span>
+<span class="code-keyword">void</span> <span class="code-func">Servo_Sweep</span>(Servo_t *servo, <span class="code-keyword">float</span> target, <span class="code-keyword">uint32_t</span> step_ms, <span class="code-keyword">float</span> step_deg)
+{
+  <span class="code-keyword">float</span> dir = (target &gt; servo->current_angle) ? <span class="code-number">1.0f</span> : <span class="code-number">-1.0f</span>;
+  <span class="code-keyword">while</span> (fabsf(target - servo->current_angle) &gt; <span class="code-number">0.5f</span>) {
+    servo->current_angle += dir * step_deg;
+    Servo_SetAngle(servo, servo->current_angle);
+    HAL_Delay(step_ms);
+  }
+  Servo_SetAngle(servo, target);
+}
+
+<span class="code-comment">/* ====== main.c 使用示例 ======
+TIM_HandleTypeDef htim4;
+
+int main(void) {
+  HAL_Init();
+  SystemClock_Config();
+
+  // TIM4: 84MHz / (83+1) = 1MHz, ARR=19999 → 50Hz
+  htim4.Instance = TIM4;
+  htim4.Init.Prescaler = 83;
+  htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim4.Init.Period = 19999;
+  htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  HAL_TIM_PWM_Init(&htim4);
+
+  Servo_t myServo;
+  Servo_Init(&myServo, &htim4, TIM_CHANNEL_1);
+
+  // 扫描运动: 0° → 180° → 0°
+  while (1) {
+    Servo_Sweep(&myServo, 180.0f, 20, 2.0f);  // 每20ms走2°
+    HAL_Delay(500);
+    Servo_Sweep(&myServo, 0.0f, 20, 2.0f);
+    HAL_Delay(500);
+  }
+}
+====== */</span></div>
+        `},
+        { title: '多舵机控制（机械臂应用）', content: `
+          <p class="text-gray-600 dark:text-gray-400 text-sm mb-3">一个定时器可通过不同通道控制多路舵机，但需要注意<strong>刷新率限制</strong>。TIM4有4个通道，可同时驱动4个舵机。</p>
+          <div class="code-block"><span class="code-comment">/* 多舵机控制示例 - 机械臂3关节 */</span>
+
+Servo_t joint_base, joint_arm, joint_hand;
+
+<span class="code-keyword">void</span> <span class="code-func">RobotArm_Init</span>(<span class="code-keyword">void</span>)
+{
+  <span class="code-comment">// 同一个TIM4, 不同通道</span>
+  Servo_Init(&amp;joint_base, &amp;htim4, TIM_CHANNEL_1); <span class="code-comment">// PA0 - 底座旋转</span>
+  Servo_Init(&amp;joint_arm,  &amp;htim4, TIM_CHANNEL_2); <span class="code-comment">// PA1 - 大臂俯仰</span>
+  Servo_Init(&amp;joint_hand, &amp;htim4, TIM_CHANNEL_3); <span class="code-comment">// PA2 - 夹爪开合</span>
+}
+
+<span class="code-comment">/**
+ * @brief 同步设置所有关节角度
+ * 注意: 每个PWM周期的各通道CCR在下一个周期生效
+ * 所以"同时"设置CCR即可实现近似同步
+ */</span>
+<span class="code-keyword">void</span> <span class="code-func">RobotArm_SetPose</span>(<span class="code-keyword">float</span> base, <span class="code-keyword">float</span> arm, <span class="code-keyword">float</span> hand)
+{
+  Servo_SetAngle(&amp;joint_base, base);
+  Servo_SetAngle(&amp;joint_arm, arm);
+  Servo_SetAngle(&amp;joint_hand, hand);
 }</div>
+          <div class="mt-3 p-3 rounded-lg" style="background:rgba(234,179,8,0.1);border:1px solid rgba(234,179,8,0.3)">
+            <p class="text-sm"><strong>多舵机供电警告：</strong>每路舵机堵转电流可达0.5-1.5A。4路舵机同时堵转可能需要6A。务必使用独立5-6V电源（如LM2596降压模块），<strong>绝对不要从STM32的3.3V引脚取电</strong>，否则MCU会复位或烧毁。</p>
+          </div>
+        `},
+        { title: '工程注意事项', content: `
+          <div class="space-y-3">
+            <div class="p-3 rounded-lg" style="background:var(--bg-secondary)">
+              <p class="font-medium text-sm mb-1">1. 供电隔离</p>
+              <p class="text-sm text-gray-600 dark:text-gray-400">舵机GND必须与MCU共地，但VCC必须独立供电。多个舵机并联时需大功率电源。建议在舵机电源线上并联100μF电解电容 + 0.1μF陶瓷电容，吸收PWM切换产生的电压尖峰。</p>
+            </div>
+            <div class="p-3 rounded-lg" style="background:var(--bg-secondary)">
+              <p class="font-medium text-sm mb-1">2. 堵转保护</p>
+              <p class="text-sm text-gray-600 dark:text-gray-400">堵转时电流可达正常工作电流的5-10倍（SG90: 100mA→1A, MG996R: 500mA→2.5A）。程序中应限制连续运行时间，机械设计上加限位防止超行程。</p>
+            </div>
+            <div class="p-3 rounded-lg" style="background:var(--bg-secondary)">
+              <p class="font-medium text-sm mb-1">3. 齿轮材质选择</p>
+              <p class="text-sm text-gray-600 dark:text-gray-400">塑料齿轮（尼龙/POM）：轻、静音、便宜，但冲击负载易碎。金属齿轮（黄铜/铝合金）：坚固，但有齿隙（backlash）约1-3°，影响定位精度。高精度场景建议选金属齿轮+滚珠轴承型号。</p>
+            </div>
+            <div class="p-3 rounded-lg" style="background:var(--bg-secondary)">
+              <p class="font-medium text-sm mb-1">4. PWM信号质量</p>
+              <p class="text-sm text-gray-600 dark:text-gray-400">舵机信号线较长时（>50cm），PWM波形会因寄生电容变形。建议在信号线末端并联10kΩ上拉电阻，或使用PCA9685等专用舵机驱动板通过I2C隔离控制。</p>
+            </div>
+          </div>
         `},
       ],
     },
+  },
+
+  // ========== 电机行业科普 ==========
+  industry: {
+    title: '电机行业',
+    subtitle: '市场、选型、应用与职业全景',
+    sections: [
+      {
+        title: '全球电机市场概况',
+        icon: '🌍',
+        desc: '了解电机行业的市场规模和主要玩家',
+        tags: ['市场', '行业'],
+        content: `
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-4">电机是现代工业的"心脏"，是将电能转换为机械能的核心装置。据统计，<strong>全球工业用电中约70%被各类电机消耗</strong>。</p>
+          <div class="overflow-x-auto mb-4">
+            <table class="compare-table">
+              <thead><tr><th>指标</th><th>数据</th><th>说明</th></tr></thead>
+              <tbody>
+                <tr><td><strong>全球市场规模</strong></td><td>约1500亿美元(2025)</td><td>预计2030年突破2000亿美元，CAGR约5%</td></tr>
+                <tr><td><strong>中国市场</strong></td><td>约4000亿人民币</td><td>全球最大的电机生产与消费国</td></tr>
+                <tr><td><strong>主要企业</strong></td><td>西门子、ABB、安川、三菱、汇川</td><td>工业伺服市场被外资品牌占据主流</td></tr>
+                <tr><td><strong>增长驱动</strong></td><td>新能源汽车、工业自动化、机器人</td><td>新能源车用电机增长最快（年增25%+）</td></tr>
+                <tr><td><strong>能效趋势</strong></td><td>IE3/IE4高能效标准推广</td><td>各国政策推动高效电机替代低效电机</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="p-4 rounded-lg" style="background:var(--bg-secondary)">
+              <h4 class="font-medium mb-2">按应用领域分布</h4>
+              <ul class="text-sm space-y-1 text-gray-600 dark:text-gray-400">
+                <li>工业驱动：35%（机床、传送带、泵、风机）</li>
+                <li>汽车（含新能源）：25%</li>
+                <li>家电：20%（空调压缩机、洗衣机、风扇）</li>
+                <li>消费电子：10%（手机振动马达、硬盘主轴）</li>
+                <li>机器人与自动化：10%</li>
+              </ul>
+            </div>
+            <div class="p-4 rounded-lg" style="background:var(--bg-secondary)">
+              <h4 class="font-medium mb-2">按电机类型分布</h4>
+              <ul class="text-sm space-y-1 text-gray-600 dark:text-gray-400">
+                <li>异步电机（感应电机）：最大份额，工业主力</li>
+                <li>永磁同步电机（PMSM）：增长最快，新能源车标配</li>
+                <li>直流有刷电机：消费电子和低成本应用</li>
+                <li>步进电机：自动化控制和精密定位</li>
+                <li>伺服电机：高端运动控制</li>
+              </ul>
+            </div>
+          </div>
+        `
+      },
+      {
+        title: '电机选型实战指南',
+        icon: '📋',
+        desc: '从需求到选型的完整决策流程',
+        tags: ['选型', '工程'],
+        content: `
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-4">选型是电机应用的第一步。选错了不仅浪费成本，更可能导致项目失败。下面是从需求分析到最终选型的完整流程。</p>
+          <div class="p-4 rounded-lg mb-4" style="background:rgba(194,136,62,0.08);border:1px solid rgba(194,136,62,0.2)">
+            <h4 class="font-medium mb-2" style="color:var(--primary)">选型六步法</h4>
+            <div class="space-y-2 text-sm text-gray-600 dark:text-gray-400">
+              <p><strong>Step 1 — 明确负载需求</strong>：需要多大的扭矩(T)？需要多快的转速(n)？负载惯量(J_load)是多少？运动模式是连续旋转还是点到点定位？</p>
+              <p><strong>Step 2 — 计算功率需求</strong>：P = T × n / 9550（kW），其中T单位N·m，n单位RPM。留20-30%的余量。</p>
+              <p><strong>Step 3 — 确定控制精度要求</strong>：需要开环控制即可？还是需要位置反馈闭环？精度要求是多少（度/脉冲数）？</p>
+              <p><strong>Step 4 — 环境与供电约束</strong>：供电电压(DC 12V/24V/48V 还是 AC 220V/380V)？工作温度范围？防护等级(IP20/IP54/IP67)？</p>
+              <p><strong>Step 5 — 成本与交付周期</strong>：预算范围？是否需要备货？是否有国产替代方案？</p>
+              <p><strong>Step 6 — 样机验证</strong>：先买1-2台样机实测，确认扭矩裕量、温升、噪音满足要求后再批量采购。</p>
+            </div>
+          </div>
+          <h4 class="font-medium mb-3">常见应用场景选型速查</h4>
+          <div class="overflow-x-auto mb-4">
+            <table class="compare-table">
+              <thead><tr><th>应用场景</th><th>推荐电机类型</th><th>关键参数</th><th>推荐型号/方案</th></tr></thead>
+              <tbody>
+                <tr><td>3D打印机挤出头</td><td>步进电机(Nema17)</td><td>1.8°步距角, 0.4A</td><td>42步进 + A4988/TMC2209</td></tr>
+                <tr><td>3D打印机运动轴</td><td>步进电机(Nema17)</td><td>1.8°, 1.0-1.5A</td><td>42步进 + TMC2209(静音)</td></tr>
+                <tr><td>CNC雕刻机</td><td>步进电机(Nema23)</td><td>高扭矩, 2-3A</td><td>57步进 + DM542驱动</td></tr>
+                <tr><td>机械臂关节</td><td>舵机/总线舵机</td><td>15-20 kg·cm</td><td>MG996R / Dynamixel</td></tr>
+                <tr><td>智能小车驱动</td><td>直流减速电机</td><td>3-12V, 100-300RPM</td><td>TT马达 / N20减速电机</td></tr>
+                <tr><td>无人机动力</td><td>无刷外转子(BLDC)</td><td>KV 1000-2300</td><td>2212/2216 + 电调(ESC)</td></tr>
+                <tr><td>AGV搬运车</td><td>直流伺服/BLDC</td><td>200-500W, 带编码器</td><td>松下/安川伺服</td></tr>
+                <tr><td>云台/摄像头转向</td><td>舵机</td><td>1.8-11 kg·cm</td><td>SG90/MG90S</td></tr>
+                <tr><td>六足机器人</td><td>总线舵机</td><td>多自由度, 需反馈</td><td>Dynamixel AX-12A</td></tr>
+                <tr><td>电动自行车</td><td>无刷中置/轮毂电机</td><td>250-500W</td><td>36V/48V BLDC + 控制器</td></tr>
+                <tr><td>工业机械臂</td><td>交流伺服</td><td>400W-5kW, 绝对编码器</td><td>汇川/安川/安川伺服</td></tr>
+                <tr><td>电梯/升降</td><td>交流异步/永磁同步</td><td>5-30kW</td><td>变频器 + 三相异步电机</td></tr>
+              </tbody>
+            </table>
+          </div>
+        `
+      },
+      {
+        title: '各类型电机优缺点对比',
+        icon: '⚖️',
+        desc: '全面对比各类型电机的性能与适用场景',
+        tags: ['对比', '选型'],
+        content: `
+          <div class="overflow-x-auto mb-4">
+            <table class="compare-table">
+              <thead><tr><th>电机类型</th><th>优点</th><th>缺点</th><th>最适合场景</th><th>价格区间</th></tr></thead>
+              <tbody>
+                <tr>
+                  <td><strong>有刷直流电机</strong></td>
+                  <td>控制最简单、成本低、启动扭矩大</td>
+                  <td>电刷磨损、寿命短、有火花干扰、效率低</td>
+                  <td>玩具、小家电、教育实验</td>
+                  <td>¥1-50</td>
+                </tr>
+                <tr>
+                  <td><strong>无刷BLDC</strong></td>
+                  <td>效率高、寿命长、功率密度大、噪声小</td>
+                  <td>需电子驱动器、控制复杂、成本高</td>
+                  <td>无人机、电动工具、电动车</td>
+                  <td>¥50-500+</td>
+                </tr>
+                <tr>
+                  <td><strong>步进电机</strong></td>
+                  <td>开环定位精确、控制简单、低速扭矩大</td>
+                  <td>高速扭矩下降、可能丢步、效率较低</td>
+                  <td>3D打印、CNC、自动化设备</td>
+                  <td>¥10-200</td>
+                </tr>
+                <tr>
+                  <td><strong>伺服电机</strong></td>
+                  <td>精度极高、响应快、力矩控制好、不丢步</td>
+                  <td>价格高、需要编码器+驱动器、调试复杂</td>
+                  <td>工业机器人、CNC机床、AGV</td>
+                  <td>¥500-50000+</td>
+                </tr>
+                <tr>
+                  <td><strong>舵机</strong></td>
+                  <td>即插即用、内置闭环、体积小价格低</td>
+                  <td>角度受限、扭矩小、电位器会磨损</td>
+                  <td>RC模型、机器人关节、云台</td>
+                  <td>¥5-250</td>
+                </tr>
+                <tr>
+                  <td><strong>交流异步电机</strong></td>
+                  <td>结构简单坚固、成本低、维护方便</td>
+                  <td>速度控制难、功率因数低、效率中等</td>
+                  <td>风机水泵、压缩机、传送带</td>
+                  <td>¥100-10000+</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="p-4 rounded-lg" style="background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2)">
+            <h4 class="font-medium mb-2" style="color:var(--primary)">选型决策树</h4>
+            <ul class="text-sm space-y-2 text-gray-600 dark:text-gray-400">
+              <li><strong>需要精确定位？</strong> → 是 → 预算充足？ → 是 → <strong>伺服电机</strong> / 否 → <strong>步进电机</strong></li>
+              <li><strong>需要精确定位？</strong> → 否 → 需要连续旋转控制？ → 是 → 功率大？ → 是 → <strong>BLDC/伺服</strong> / 否 → <strong>有刷直流</strong></li>
+              <li><strong>需要角度控制(≤180°)？</strong> → <strong>舵机</strong></li>
+              <li><strong>工业级大功率？</strong> → <strong>交流异步/永磁同步 + 变频器/伺服驱动器</strong></li>
+            </ul>
+          </div>
+        `
+      },
+      {
+        title: '电机驱动芯片与开发平台',
+        icon: '🔧',
+        desc: '常用电机驱动IC和开源平台',
+        tags: ['硬件', '开发'],
+        content: `
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-3">电机驱动是连接MCU和电机的桥梁。选择合适的驱动方案，直接影响控制效果和开发效率。</p>
+          <h4 class="font-medium mb-2">常用驱动芯片/模块</h4>
+          <div class="overflow-x-auto mb-4">
+            <table class="compare-table">
+              <thead><tr><th>芯片/模块</th><th>适用电机</th><th>电压</th><th>电流</th><th>接口</th><th>价格</th></tr></thead>
+              <tbody>
+                <tr><td>L298N</td><td>有刷直流(2路)</td><td>5-46V</td><td>2A/路</td><td>GPIO(方向)+PWM</td><td>~¥8</td></tr>
+                <tr><td>TB6612FNG</td><td>有刷直流(2路)</td><td>2.5-13.5V</td><td>1.2A/路</td><td>GPIO+PWM</td><td>~¥5</td></tr>
+                <tr><td>DRV8825</td><td>步进(1路)</td><td>8.2-45V</td><td>1.5A</td><td>STEP/DIR</td><td>~¥6</td></tr>
+                <tr><td>A4988</td><td>步进(1路)</td><td>8-35V</td><td>1A(2A峰值)</td><td>STEP/DIR</td><td>~¥5</td></tr>
+                <tr><td>TMC2209</td><td>步进(1路,静音)</td><td>5.5-29V</td><td>1.2A</td><td>UART/STEP_DIR</td><td>~¥12</td></tr>
+                <tr><td>DRV8302</td><td>BLDC/PMSM(3路)</td><td>6-60V</td><td>2.5A</td><td>6路PWM(PWM+INA/INB)</td><td>~¥15</td></tr>
+                <tr><td>IR2136</td><td>BLDC三相栅驱</td><td>12-600V</td><td>200mA栅驱</td><td>6路PWM</td><td>~¥8</td></tr>
+                <tr><td>PCA9685</td><td>舵机(16路)</td><td>-</td><td>-</td><td>I2C</td><td>~¥10</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <h4 class="font-medium mb-2">开源FOC开发平台</h4>
+          <div class="overflow-x-auto mb-4">
+            <table class="compare-table">
+              <thead><tr><th>平台</th><th>MCU</th><th>特点</th><th>适合阶段</th></tr></thead>
+              <tbody>
+                <tr><td><strong>SimpleFOC</strong></td><td>Arduino/STM32/ESP32</td><td>开源、C++库、FOC完整实现、社区活跃</td><td>FOC入门首选</td></tr>
+                <tr><td><strong>ODrive</strong></td><td>STM32F405</td><td>高性能双通道、闭环支持、Python工具链</td><td>机器人关节/云台</td></tr>
+                <tr><td><strong>VESC</strong></td><td>STM32F405</td><td>电调级性能、BLDC+FOC、参数丰富</td><td>电动车/高性能驱动</td></tr>
+                <tr><td><strong>DengFOC</strong></td><td>STM32G4</td><td>国产开源、硬件便宜、中文文档好</td><td>国内FOC入门推荐</td></tr>
+              </tbody>
+            </table>
+          </div>
+        `
+      },
+      {
+        title: '电机行业职业路径',
+        icon: '👨‍💻',
+        desc: '电机控制领域的职业方向和发展路径',
+        tags: ['职业', '发展'],
+        content: `
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-4">电机控制是嵌入式系统与电力电子的交叉领域，就业面广、需求稳定。以下是从入门到专家的职业发展路径。</p>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div class="p-4 rounded-lg" style="background:var(--bg-secondary)">
+              <h4 class="font-medium mb-2">1. 电机驱动工程师（嵌入式）</h4>
+              <p class="text-sm text-gray-600 dark:text-gray-400 mb-2"><strong>做什么：</strong>编写电机驱动固件，调试FOC/PID控制算法，实现通信协议(CAN/Modbus)。</p>
+              <p class="text-sm text-gray-600 dark:text-gray-400 mb-2"><strong>技能要求：</strong>C语言、STM32/ARM、PWM/GPIO/ADC操作、PID调试、FOC算法基础。</p>
+              <p class="text-sm text-gray-600 dark:text-gray-400"><strong>薪资范围：</strong>应届8-15K → 3年经验15-25K → 资深25-40K+</p>
+            </div>
+            <div class="p-4 rounded-lg" style="background:var(--bg-secondary)">
+              <h4 class="font-medium mb-2">2. 算法工程师（运动控制）</h4>
+              <p class="text-sm text-gray-600 dark:text-gray-400 mb-2"><strong>做什么：</strong>设计控制算法（FOC、无感控制、自适应PID）、系统建模与仿真。</p>
+              <p class="text-sm text-gray-600 dark:text-gray-400 mb-2"><strong>技能要求：</strong>控制理论（状态空间/频域）、MATLAB/Simulink、C/C++、电机建模。</p>
+              <p class="text-sm text-gray-600 dark:text-gray-400"><strong>薪资范围：</strong>应届12-20K → 3年经验20-35K → 资深35-60K+</p>
+            </div>
+            <div class="p-4 rounded-lg" style="background:var(--bg-secondary)">
+              <h4 class="font-medium mb-2">3. 电力电子硬件工程师</h4>
+              <p class="text-sm text-gray-600 dark:text-gray-400 mb-2"><strong>做什么：</strong>设计逆变器/驱动板硬件（功率MOSFET/IGBT选型、栅极驱动、PCB Layout、EMC设计）。</p>
+              <p class="text-sm text-gray-600 dark:text-gray-400 mb-2"><strong>技能要求：</strong>电路原理、功率器件选型、PCB设计(Altium/AD)、EMC/EMI设计。</p>
+              <p class="text-sm text-gray-600 dark:text-gray-400"><strong>薪资范围：</strong>应届8-15K → 3年经验15-30K → 资深30-50K+</p>
+            </div>
+            <div class="p-4 rounded-lg" style="background:var(--bg-secondary)">
+              <h4 class="font-medium mb-2">4. 机器人/自动化工程师</h4>
+              <p class="text-sm text-gray-600 dark:text-gray-400 mb-2"><strong>做什么：</strong>使用伺服/步进/舵机搭建运动系统，实现轨迹规划、多轴联动。</p>
+              <p class="text-sm text-gray-600 dark:text-gray-400 mb-2"><strong>技能要求：</strong>运动学建模、ROS/ROS2、多轴协调控制、电机选型与集成。</p>
+              <p class="text-sm text-gray-600 dark:text-gray-400"><strong>薪资范围：</strong>应届10-18K → 3年经验18-30K → 资深30-50K+</p>
+            </div>
+          </div>
+          <div class="p-4 rounded-lg" style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.2)">
+            <h4 class="font-medium mb-2">学习建议（给新手）</h4>
+            <ol class="text-sm space-y-1 text-gray-600 dark:text-gray-400 list-decimal pl-5">
+              <li><strong>基础阶段</strong>（1-3月）：C语言扎实 → 51单片机/Arduino点亮LED → GPIO/PWM/Timer基础</li>
+              <li><strong>电机入门</strong>（1-2月）：有刷直流电机 + L298N → 理解PWM调速 → 加编码器测速</li>
+              <li><strong>进阶控制</strong>（2-3月）：STM32 HAL开发 → 步进电机 + A4988 → 舵机PWM控制</li>
+              <li><strong>FOC专精</strong>（3-6月）：学习Clarke/Park变换 → SimpleFOC/ODrive实操 → FOC调试</li>
+              <li><strong>项目实战</strong>：做一个完整项目（如自平衡小车、机械臂、云台），这是简历加分项</li>
+            </ol>
+          </div>
+        `
+      },
+    ],
   },
 
   // ========== 电机对比数据 ==========
@@ -952,6 +1480,20 @@ const QuizData = {
   'advanced-multiloop': [
     { question: '三环串级控制中，应该最先调试哪个环？', options: ['位置环', '速度环', '电流环', '同时调试'], answer: 2, explanation: '调试顺序由内到外：先调电流环（响应最快）→ 再调速度环 → 最后调位置环。内环稳定后再调外环。' },
     { question: '电流环的带宽通常为？', options: ['10-100Hz', '100-500Hz', '1-10kHz', '10-100kHz'], answer: 2, explanation: '电流环（最内环）带宽最高，约1-10kHz。速度环约100-500Hz，位置环约10-100Hz。内环频率约为外环的10倍。' },
+  ],
+  'motor-stepper': [
+    { question: '步进电机最常见的步距角是多少？', options: ['0.9°', '1.8°', '3.6°', '7.5°'], answer: 1, explanation: '混合式步进电机（最常用）的标准步距角为1.8°，即每转200步。这由转子50个齿和定子4相绕组决定。' },
+    { question: 'A4988驱动模块的Vref电位器用于设置什么？', options: ['步距角', '电流限制', '细分模式', '脉冲频率'], answer: 1, explanation: 'Vref用于设定步进电机的电流上限。关系式：I_max = Vref / (8 × Rsense)。A4988的Rsense=0.1Ω，所以I_max = Vref/0.8。' },
+    { question: '16细分模式下，每转需要的脉冲数为？', options: ['200', '800', '1600', '3200'], answer: 3, explanation: '细分 = 16，基础步数 = 200，总脉冲 = 200 × 16 = 3200。细分越高，运动越平滑，但高频脉冲对MCU要求更高。' },
+    { question: '步进电机在高速时容易丢步的原因是？', options: ['电压太低', '转矩随转速下降到不足以克服负载', 'PWM频率不够', '编码器精度不足'], answer: 1, explanation: '步进电机的转矩-转速特性呈严重下降曲线。转速越高，反电动势越大，绕组电流来不及建立，导致转矩急剧下降，无法跟随脉冲而"丢步"。' },
+    { question: 'TMC2209相比A4988的最大优势是？', options: ['支持更高电压', '静音模式(SpreadCycle/StealthChop)', '更大的驱动电流', '更小的体积'], answer: 1, explanation: 'TMC2209的StealthChop模式通过斩波算法大幅降低步进电机的噪声，几乎静音运行。同时支持UART配置和更精确的电流控制。' },
+  ],
+  'motor-hobby-servo': [
+    { question: '舵机控制信号的频率是多少？', options: ['20Hz', '50Hz', '100Hz', '200Hz'], answer: 1, explanation: '标准舵机使用50Hz PWM信号（周期20ms）。脉冲宽度0.5-2.5ms对应0-180°角度范围。' },
+    { question: 'STM32 TIM4输出50Hz PWM，PSC=83，ARR=19999，对应的CCR值范围（0.5-2.5ms）是？', options: ['25-125', '50-150', '100-200', '250-750'], answer: 0, explanation: 'CCR = (脉冲宽度ms / 20ms) × 20000。0.5ms→500, 1.5ms→1500, 2.5ms→2500。注意ARR=19999，所以范围是500-2500。' },
+    { question: '数字舵机相比模拟舵机的主要改进是？', options: ['更大的角度范围', '更高的刷新频率和更小的死区', '更低的供电电压', '不需要PWM信号'], answer: 1, explanation: '数字舵机内部MCU以约300Hz频率（模拟舵机仅50Hz）刷新驱动信号，死区更小、响应更快、定位更精确、静止力矩更大。' },
+    { question: '舵机内部的位置反馈元件是什么？', options: ['光学编码器', '霍尔传感器', '电位器(可变电阻)', '旋转变压器'], answer: 2, explanation: '标准舵机使用与输出轴同轴连接的电位器（可变电阻），输出0-VCC的模拟电压代表当前角度。电位器磨损是舵机失效的常见原因。' },
+    { question: '多舵机并联使用时，最重要的注意事项是？', options: ['使用更细的信号线', '独立供电，避免从MCU取电', '所有舵机接同一路PWM', '不需要共地'], answer: 1, explanation: '舵机堵转电流可达正常电流的5-10倍。多舵机同时动作时总电流可能远超MCU供电能力，必须使用独立5-6V大电流电源，但GND必须共地。' },
   ],
 };
 

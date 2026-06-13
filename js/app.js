@@ -76,6 +76,7 @@
         case 'home': html = renderHomePage(); break;
         case 'beginner': html = renderSectionPage(MotorData.beginner); break;
         case 'advanced': html = renderSectionPage(MotorData.advanced); break;
+        case 'industry': html = renderIndustryPage(); break;
         case 'roadmap': html = renderRoadmapPage(); break;
         case 'tools': html = renderToolsPage(); break;
         default:
@@ -294,6 +295,7 @@
           <div class="accordion-body"><div class="accordion-body-inner">${s.content}</div></div>
         </div>`).join('')}
       </div>
+      ${(() => { const quiz = QuizData['motor-' + motorId]; return quiz ? Quiz.render('motor-' + motorId, quiz) : ''; })()}
     </div>`;
   }
 
@@ -368,6 +370,24 @@
         <button class="text-xs hover:underline" style="color:var(--primary)" onclick="toggleProgress('${item.id}',null)">${label}</button>
       </div>`;
     }).join('');
+  }
+
+  // ========== 电机行业页 ==========
+  function renderIndustryPage() {
+    const d = MotorData.industry;
+    if (!d) return '<p>内容加载中...</p>';
+    return `<div>
+      <div class="page-hero"><h1>${d.title}</h1><p>${d.subtitle}</p></div>
+      <div class="space-y-1">
+        ${d.sections.map(s => `<div class="accordion-item">
+          <button class="accordion-header" onclick="toggleAccordion(this)">
+            <span>${s.icon} ${s.title}</span>
+            <svg class="w-5 h-5" style="color:var(--text-secondary)" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+          </button>
+          <div class="accordion-body"><div class="accordion-body-inner">${s.content}</div></div>
+        </div>`).join('')}
+      </div>
+    </div>`;
   }
 
   // ========== 对比表格 ==========

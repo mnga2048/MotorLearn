@@ -17,6 +17,9 @@ const Search = {
         this.index.push({ id: 'motor-' + key, title: m.title + ' - ' + s.title, desc: s.content?.replace(/<[^>]*>/g, '').substring(0, 100) || '', tags: [], page: key, scrollTo: s.title });
       });
     });
+    MotorData.industry?.sections?.forEach(s => {
+      this.index.push({ id: 'industry', title: s.title, desc: s.desc, tags: s.tags || [], page: 'industry' });
+    });
   },
 
   query(keyword) {
