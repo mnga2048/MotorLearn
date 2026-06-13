@@ -4,17 +4,25 @@
   let currentPage = 'home';
 
   // ========== 侧边栏渲染 ==========
+  const collapsedGroups = JSON.parse(sessionStorage.getItem('ml_collapsed') || '{}');
+
   function renderSidebar() {
     const nav = document.getElementById('sidebar-nav');
     if (!nav) return;
     let html = '';
     MotorData.nav.forEach(item => {
       if (item.children) {
-        html += `<div class="nav-section-title">${item.label}</div>`;
+        const isCollapsed = !!collapsedGroups[item.id];
+        html += `<div class="nav-section-title nav-group-toggle" onclick="toggleNavGroup('${item.id}')">
+          <span class="flex items-center gap-1">${MotorData.icons[item.icon] || ''} ${item.label}</span>
+          <svg class="w-3.5 h-3.5 transition-transform ${isCollapsed ? '' : 'rotate-90'}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+        </div>`;
+        html += `<div class="nav-children ${isCollapsed ? 'hidden' : ''}">`;
         item.children.forEach(child => {
           html += `<a class="nav-item" data-page="${child.id}" onclick="navigateTo('${child.id}')">
-            <span class="nav-icon">${MotorData.icons[item.icon] || ''}</span><span>${child.label}</span></a>`;
+            <span>${child.label}</span></a>`;
         });
+        html += `</div>`;
       } else {
         html += `<a class="nav-item" data-page="${item.id}" onclick="navigateTo('${item.id}')">
           <span class="nav-icon">${MotorData.icons[item.icon] || ''}</span><span>${item.label}</span>
@@ -44,6 +52,12 @@
     }
     nav.innerHTML = html;
   }
+
+  window.toggleNavGroup = function(groupId) {
+    collapsedGroups[groupId] = !collapsedGroups[groupId];
+    sessionStorage.setItem('ml_collapsed', JSON.stringify(collapsedGroups));
+    renderSidebar();
+  };
 
   function updateActiveNav(pageId) {
     document.querySelectorAll('.nav-item').forEach(el => {
@@ -77,6 +91,7 @@
         case 'beginner': html = renderSectionPage(MotorData.beginner); break;
         case 'advanced': html = renderSectionPage(MotorData.advanced); break;
         case 'industry': html = renderIndustryPage(); break;
+        case 'motors': html = renderMotorsPage(); break;
         case 'roadmap': html = renderRoadmapPage(); break;
         case 'tools': html = renderToolsPage(); break;
         default:
@@ -338,10 +353,12 @@
       <div class="tab-nav">
         <button class="tab-btn active" onclick="switchTab('tab-compare',this)">电机对比</button>
         <button class="tab-btn" onclick="switchTab('tab-calculators',this)">公式计算器</button>
+        <button class="tab-btn" onclick="switchTab('tab-validator',this)">协议校验</button>
         <button class="tab-btn" onclick="switchTab('tab-progress',this)">学习进度</button>
       </div>
       <div id="tab-compare" class="tab-panel active"><div class="overflow-x-auto">${renderCompareTable()}</div></div>
       <div id="tab-calculators" class="tab-panel"><div id="calculators-container"></div></div>
+      <div id="tab-validator" class="tab-panel"><div id="validator-container"></div></div>
       <div id="tab-progress" class="tab-panel">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div class="knowledge-card"><h3>进度概览</h3><div id="progress-chart" class="chart-container"></div></div>
@@ -370,6 +387,43 @@
         <button class="text-xs hover:underline" style="color:var(--primary)" onclick="toggleProgress('${item.id}',null)">${label}</button>
       </div>`;
     }).join('');
+  }
+
+  // ========== 电机分类列表页 ==========
+  function renderMotorsPage() {
+    return `<div>
+      <div class="page-hero"><h1>电机分类</h1><p>了解各类电机的结构、原理、优缺点和典型应用</p></div>
+      <div class="space-y-1">
+        ${Object.entries(MotorData.motorTypes).map(([id, m]) => {
+          const status = Progress.get('motor-' + id);
+          const statusClass = status === 'completed' ? 'completed' : status === 'learning' ? 'learning' : '';
+          const statusBtnClass = status === 'completed' ? 'status-completed' : status === 'learning' ? 'status-learning' : '';
+          const statusText = status === 'completed' ? '已完成' : status === 'learning' ? '学习中' : '标记学习';
+          const statusIcon = status === 'completed' ? '✓' : status === 'learning' ? '◐' : '○';
+          const isFav = Favorites.has(id);
+          const hasQuiz = QuizData['motor-' + id]?.length > 0;
+          return `<div class="knowledge-card ${statusClass}">
+            <div class="flex items-start justify-between gap-3">
+              <div class="flex-1 min-w-0">
+                <h3><span>${m.icon}</span>
+                  <a href="#" onclick="navigateTo('${id}');return false;" style="color:var(--primary)">${m.title}</a>
+                  ${hasQuiz ? '<span class="text-xs px-1.5 py-0.5 rounded ml-1" style="background:rgba(194,136,62,0.1);color:var(--primary)">测验</span>' : ''}
+                </h3>
+                <p class="card-desc">${m.subtitle}</p>
+                <div class="card-tags">${Object.entries(m.specs).slice(0, 3).map(([k, v]) => `<span class="card-tag">${k}: ${v}</span>`).join('')}</div>
+              </div>
+              <div class="flex items-center gap-1">
+                <button class="star-btn ${isFav ? 'starred' : ''}" onclick="toggleFav('${id}')">${isFav ? '★' : '☆'}</button>
+                <button class="status-btn ${statusBtnClass}" onclick="toggleProgress('motor-${id}',this)">
+                  <span>${statusIcon}</span><span class="hidden sm:inline">${statusText}</span>
+                </button>
+              </div>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+      <div class="mt-6"><h2 class="text-xl font-semibold mb-4">电机类型速览</h2><div class="overflow-x-auto">${renderCompareTable()}</div></div>
+    </div>`;
   }
 
   // ========== 电机行业页 ==========
@@ -429,6 +483,7 @@
     btn.classList.add('active');
     document.getElementById(tabId)?.classList.add('active');
     if (tabId === 'tab-calculators') Calculator.render('calculators-container');
+    if (tabId === 'tab-validator') Validator.render('validator-container');
     if (tabId === 'tab-progress') {
       const el = document.getElementById('progress-chart');
       if (el && !el.dataset.init) { el.dataset.init = '1'; Charts.renderProgressChart('progress-chart'); }
@@ -469,25 +524,60 @@
   // 导航
   window.navigateTo = function (pageId) {
     renderPage(pageId);
-    closeSidebar();
+    // 移动端关闭侧边栏，桌面端不影响折叠状态
+    if (window.innerWidth < 1024) closeSidebar();
     return false;
   };
 
   // 侧边栏
+  let sidebarCollapsed = localStorage.getItem('ml_sidebar_collapsed') === 'true';
+
+  function applySidebarState() {
+    const sidebar = document.getElementById('sidebar');
+    const main = document.getElementById('main-content');
+    const toggle = document.getElementById('sidebar-toggle');
+    if (!sidebar || !main) return;
+    // 使用 inline style 而非 Tailwind 类，避免 lg: 媒体查询覆盖
+    if (sidebarCollapsed) {
+      sidebar.style.transform = 'translateX(-100%)';
+      main.style.marginLeft = '0';
+      if (toggle) { toggle.style.left = '0'; toggle.classList.add('sidebar-collapsed'); }
+    } else {
+      sidebar.style.transform = '';
+      main.style.marginLeft = '';
+      if (toggle) { toggle.style.left = '16rem'; toggle.classList.remove('sidebar-collapsed'); }
+    }
+  }
+
   window.closeSidebar = function () {
     const sidebar = document.getElementById('sidebar');
     const overlay = document.getElementById('sidebar-overlay');
-    sidebar?.classList.remove('translate-x-0');
-    sidebar?.classList.add('-translate-x-full');
+    if (sidebar) sidebar.style.transform = 'translateX(-100%)';
     overlay?.classList.add('hidden');
   };
   document.getElementById('menu-toggle')?.addEventListener('click', () => {
     const sidebar = document.getElementById('sidebar');
     const overlay = document.getElementById('sidebar-overlay');
-    sidebar?.classList.toggle('-translate-x-full');
-    sidebar?.classList.toggle('translate-x-0');
-    overlay?.classList.toggle('hidden');
+    if (!sidebar) return;
+    const isOpen = sidebar.style.transform !== 'translateX(-100%)';
+    sidebar.style.transform = isOpen ? 'translateX(-100%)' : '';
+    overlay?.classList.toggle('hidden', isOpen);
   });
+
+  // 桌面端侧边栏折叠按钮
+  document.getElementById('sidebar-toggle')?.addEventListener('click', () => {
+    sidebarCollapsed = !sidebarCollapsed;
+    localStorage.setItem('ml_sidebar_collapsed', sidebarCollapsed);
+    applySidebarState();
+  });
+
+  // 初始化侧边栏状态（必须在 DOM 就绪后执行）
+  applySidebarState();
+  // 确保桌面端 main-content 有正确的初始 margin
+  if (!sidebarCollapsed) {
+    const main = document.getElementById('main-content');
+    if (main) main.style.marginLeft = '16rem';
+  }
 
   // 主题切换
   function applyTheme(dark) {

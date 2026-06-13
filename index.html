@@ -104,13 +104,18 @@
 
   <div class="flex pt-16">
     <!-- 侧边栏 -->
-    <aside id="sidebar" class="fixed left-0 top-16 bottom-0 w-64 border-r overflow-y-auto transition-transform duration-300 lg:translate-x-0 -translate-x-full z-40" style="background:var(--bg-sidebar);border-color:var(--border)">
+    <aside id="sidebar" class="fixed left-0 top-16 bottom-0 w-64 border-r overflow-y-auto transition-all duration-300 lg:translate-x-0 -translate-x-full z-40" style="background:var(--bg-sidebar);border-color:var(--border)">
       <nav class="p-4 space-y-1" id="sidebar-nav"></nav>
     </aside>
     <div id="sidebar-overlay" class="fixed inset-0 bg-black/50 z-30 hidden lg:hidden" onclick="closeSidebar()"></div>
 
+    <!-- 侧边栏折叠按钮 -->
+    <button id="sidebar-toggle" class="hidden lg:flex fixed left-64 top-20 z-50 w-5 h-10 items-center justify-center rounded-r-md border border-l-0 cursor-pointer transition-all duration-300" style="background:var(--bg-sidebar);border-color:var(--border);color:var(--text-secondary)" title="折叠侧边栏">
+      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+    </button>
+
     <!-- 主内容区 -->
-    <main id="main-content" class="flex-1 lg:ml-64 min-h-screen">
+    <main id="main-content" class="flex-1 lg:ml-64 min-h-screen transition-[margin] duration-300">
       <div id="page-container" class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8" style="transition:opacity 0.2s,transform 0.2s"></div>
     </main>
   </div>
@@ -144,6 +149,7 @@
   <script src="js/search.js"></script>
   <script src="js/calculator.js"></script>
   <script src="js/charts.js"></script>
+  <script src="js/validator.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

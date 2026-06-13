@@ -15,6 +15,22 @@
   letter-spacing: 0.05em; padding: 0.75rem 0.75rem 0.375rem;
   color: var(--text-secondary);
 }
+.nav-group-toggle {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  user-select: none;
+  border-radius: 0.375rem;
+  transition: background 0.15s;
+}
+.nav-group-toggle:hover { background: rgba(194,136,62,0.06); }
+.nav-children { overflow: hidden; transition: max-height 0.25s ease; }
+.nav-children.hidden { display: none; }
+
+#sidebar-toggle:hover { color: var(--primary); background: var(--bg-card); }
+#sidebar-toggle svg { transition: transform 0.3s; }
+#sidebar-toggle.sidebar-collapsed svg { transform: rotate(180deg); }
 .nav-item {
   display: flex; align-items: center; gap: 0.5rem;
   padding: 0.5rem 0.75rem; border-radius: 0.5rem;
@@ -173,6 +189,68 @@
   font-size: 0.875rem; background: var(--bg); color: var(--text);
 }
 .calc-result { background: rgba(194,136,62,0.06); border: 1px solid rgba(194,136,62,0.15); border-radius: 0.5rem; padding: 1rem; margin-top: 0.5rem; }
+
+/* ====== 协议校验工具 ====== */
+.val-tabs { display: flex; flex-wrap: wrap; gap: 0.25rem; margin-bottom: 1rem; }
+.val-tab-btn {
+  padding: 0.5rem 0.875rem; font-size: 0.8125rem; font-weight: 500; color: var(--text-secondary);
+  background: var(--bg); border: 1px solid var(--border); border-radius: 0.375rem;
+  cursor: pointer; transition: all 0.15s; white-space: nowrap;
+}
+.val-tab-btn:hover { border-color: var(--primary); color: var(--primary); }
+.val-tab-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+.val-mode-row { display: flex; gap: 1.25rem; margin-bottom: 0.75rem; }
+.val-mode-row label { display: flex; align-items: center; gap: 0.375rem; cursor: pointer; font-size: 0.8125rem; color: var(--text-secondary); }
+.val-mode-row input[type="radio"] { accent-color: var(--primary); }
+.val-textarea {
+  width: 100%; padding: 0.75rem 1rem; border: 1.5px solid var(--border); border-radius: 0.5rem;
+  font-family: Consolas, 'Courier New', monospace; font-size: 0.9375rem;
+  background: var(--bg); color: var(--text); resize: vertical; outline: none;
+  transition: border-color 0.2s;
+}
+.val-textarea:focus { border-color: var(--primary); }
+.val-textarea::placeholder { color: var(--text-secondary); opacity: 0.5; }
+.val-btn-row { display: flex; gap: 0.625rem; margin-top: 0.875rem; }
+.val-btn-primary {
+  flex: 1; padding: 0.625rem 0; border: none; border-radius: 0.5rem;
+  font-size: 0.875rem; font-weight: 600; background: var(--primary); color: #fff;
+  cursor: pointer; transition: all 0.15s;
+}
+.val-btn-primary:hover { opacity: 0.9; }
+.val-btn-primary:active { transform: scale(0.97); }
+.val-btn-secondary {
+  flex: 0 0 60px; padding: 0.625rem 0; border: 1px solid var(--border); border-radius: 0.5rem;
+  font-size: 0.875rem; font-weight: 500; background: var(--bg-card); color: var(--text-secondary);
+  cursor: pointer; transition: all 0.15s;
+}
+.val-btn-secondary:hover { background: var(--border); }
+.val-result-area { display: none; }
+.val-result-row {
+  display: flex; align-items: center; gap: 0.625rem; padding: 0.5rem 0;
+  border-bottom: 1px solid rgba(0,0,0,0.04); font-size: 0.875rem;
+}
+.val-result-row:last-child { border-bottom: none; }
+.val-result-title { flex-shrink: 0; width: 180px; font-size: 0.8125rem; color: var(--text-secondary); }
+.val-result-value {
+  flex: 1; font-family: Consolas, monospace; font-size: 1rem; font-weight: 600;
+  color: var(--success); word-break: break-all; user-select: all;
+}
+.val-copy-btn {
+  flex-shrink: 0; padding: 2px 8px; font-size: 0.6875rem; border-radius: 0.25rem;
+  border: 1px solid var(--border); background: var(--bg-card); color: var(--text-secondary);
+  cursor: pointer; transition: all 0.15s; white-space: nowrap;
+}
+.val-copy-btn:hover { border-color: var(--primary); color: var(--primary); }
+.val-history-sec { margin-top: 0.75rem; }
+.val-history-list { max-height: 160px; overflow-y: auto; }
+.val-history-item {
+  display: flex; justify-content: space-between; align-items: center; gap: 0.75rem;
+  padding: 0.375rem 0.75rem; margin-bottom: 0.25rem; border-radius: 0.25rem;
+  font-size: 0.75rem; font-family: Consolas, monospace; cursor: pointer;
+  background: rgba(0,0,0,0.02); transition: background 0.15s;
+}
+[data-theme="dark"] .val-history-item { background: rgba(255,255,255,0.02); }
+.val-history-item:hover { background: rgba(194,136,62,0.06); }
 
 /* ====== 自测练习 ====== */
 .quiz-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 0.75rem; padding: 1.5rem; margin-bottom: 1rem; }
