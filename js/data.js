@@ -2373,7 +2373,7 @@ Debug_Sample_t g_dbg_buf[DBG_BUF_SIZE];
           </div>
         `},
         { title: '优缺点', content: `
-          <div class="grid grid-cols-2 gap-4">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div><h5 class="font-medium text-green-600 mb-2">优点</h5>
               <ul class="list-disc pl-5 text-sm space-y-1 text-gray-600 dark:text-gray-400">
                 <li>结构简单、成本低</li><li>控制容易（PWM直接调速）</li><li>启动转矩大</li><li>无需驱动器（小功率）</li>
@@ -2506,7 +2506,7 @@ HAL_TIM_PWM_Start(&amp;htim2, TIM_CHANNEL_1);
           </div>
         `},
         { title: '优缺点', content: `
-          <div class="grid grid-cols-2 gap-4">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div><h5 class="font-medium text-green-600 mb-2">优点</h5>
               <ul class="list-disc pl-5 text-sm space-y-1 text-gray-600 dark:text-gray-400">
                 <li>效率高（85-95%）</li><li>寿命长（无磨损件）</li><li>扭矩特性平坦</li><li>噪音低、无火花</li><li>转速范围宽</li>
@@ -2631,7 +2631,7 @@ HAL_TIM_PWM_Start(&amp;htim2, TIM_CHANNEL_1);
           </div>
         `},
         { title: '优缺点', content: `
-          <div class="grid grid-cols-2 gap-4">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div><h5 class="font-medium mb-2" style="color:var(--success)">优点</h5>
               <ul class="list-disc pl-5 text-sm space-y-1" style="color:var(--text-secondary)">
                 <li>无需编码器即可精确定位（开环）</li><li>控制最简单——只需脉冲+方向两个GPIO</li><li>低速扭矩大</li><li>成本低（电机本体5-50元）</li>
@@ -2922,7 +2922,7 @@ GND  --> GND     (STM32与A4988必须共地!)</div>
           </div>
         `},
         { title: '优缺点', content: `
-          <div class="grid grid-cols-2 gap-4">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div><h5 class="font-medium text-green-600 mb-2">优点</h5>
               <ul class="list-disc pl-5 text-sm space-y-1 text-gray-600 dark:text-gray-400">
                 <li>闭环控制、不会丢步</li><li>高速高精度</li><li>过载能力强</li><li>响应速度快</li>
@@ -3078,7 +3078,7 @@ GND  --> GND     (STM32与A4988必须共地!)</div>
           <p class="text-sm text-gray-600 dark:text-gray-400">提示：扭矩标注通常基于6V供电和4.8V测试电压两个标准，选型时注意区分。7.2V供电扭矩可提升约30%。</p>
         `},
         { title: '优缺点分析', content: `
-          <div class="grid grid-cols-2 gap-4">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div><h5 class="font-medium text-green-600 mb-2">优点</h5>
               <ul class="list-disc pl-5 text-sm space-y-1 text-gray-600 dark:text-gray-400">
                 <li>单线控制，接口极简（GND/VCC/SIG）</li><li>内置闭环，无需外部反馈</li><li>体积紧凑、功耗低</li><li>价格低廉，入门友好</li><li>减速齿轮提供大扭矩输出</li>

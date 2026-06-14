@@ -536,20 +536,32 @@
 
   // 侧边栏
   let sidebarCollapsed = localStorage.getItem('ml_sidebar_collapsed') === 'true';
+  let mobileSidebarOpen = false;   // 移动端抽屉式侧边栏的开合状态
+
+  // 判断是否桌面端（≥1024px）：手机/平板上侧边栏按抽屉模式，不占布局空间
+  function isDesktop() { return window.innerWidth >= 1024; }
 
   function applySidebarState() {
     const sidebar = document.getElementById('sidebar');
     const main = document.getElementById('main-content');
     const toggle = document.getElementById('sidebar-toggle');
     if (!sidebar || !main) return;
-    // 使用 inline style 而非 Tailwind 类，避免 lg: 媒体查询覆盖
+    if (!isDesktop()) {
+      // 移动端：主内容占满宽度，侧边栏脱离布局做抽屉
+      main.style.marginLeft = '0';
+      if (toggle) toggle.style.display = 'none';
+      if (!mobileSidebarOpen) sidebar.style.transform = 'translateX(-100%)';
+      return;
+    }
+    // 桌面端：用 inline style 控制折叠
+    if (toggle) toggle.style.display = '';
     if (sidebarCollapsed) {
       sidebar.style.transform = 'translateX(-100%)';
       main.style.marginLeft = '0';
       if (toggle) { toggle.style.left = '0'; toggle.classList.add('sidebar-collapsed'); }
     } else {
       sidebar.style.transform = '';
-      main.style.marginLeft = '';
+      main.style.marginLeft = '16rem';
       if (toggle) { toggle.style.left = '16rem'; toggle.classList.remove('sidebar-collapsed'); }
     }
   }
@@ -557,6 +569,7 @@
   window.closeSidebar = function () {
     const sidebar = document.getElementById('sidebar');
     const overlay = document.getElementById('sidebar-overlay');
+    mobileSidebarOpen = false;
     if (sidebar) sidebar.style.transform = 'translateX(-100%)';
     overlay?.classList.add('hidden');
   };
@@ -564,9 +577,9 @@
     const sidebar = document.getElementById('sidebar');
     const overlay = document.getElementById('sidebar-overlay');
     if (!sidebar) return;
-    const isOpen = sidebar.style.transform !== 'translateX(-100%)';
-    sidebar.style.transform = isOpen ? 'translateX(-100%)' : '';
-    overlay?.classList.toggle('hidden', isOpen);
+    mobileSidebarOpen = !mobileSidebarOpen;
+    sidebar.style.transform = mobileSidebarOpen ? '' : 'translateX(-100%)';
+    overlay?.classList.toggle('hidden', !mobileSidebarOpen);
   });
 
   // 桌面端侧边栏折叠按钮
@@ -577,12 +590,22 @@
   });
 
   // 初始化侧边栏状态（必须在 DOM 就绪后执行）
+  // applySidebarState 内部已根据屏幕宽度区分桌面/移动端处理 margin
   applySidebarState();
-  // 确保桌面端 main-content 有正确的初始 margin
-  if (!sidebarCollapsed) {
-    const main = document.getElementById('main-content');
-    if (main) main.style.marginLeft = '16rem';
-  }
+
+  // 窗口尺寸变化时重新应用（横竖屏切换、缩放窗口）
+  let resizeTimer;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      applySidebarState();
+      // 切到桌面端时若移动抽屉开着，收起它
+      if (isDesktop() && mobileSidebarOpen) {
+        mobileSidebarOpen = false;
+        document.getElementById('sidebar-overlay')?.classList.add('hidden');
+      }
+    }, 150);
+  });
 
   // 主题切换
   function applyTheme(dark) {
