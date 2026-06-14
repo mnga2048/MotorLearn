@@ -1034,28 +1034,23 @@ TIM_HandleTypeDef htim1;
           <div class="code-block"><span class="code-comment">/* STM32 高级定时器（TIM1/TIM8）支持硬件互补PWM + 死区
  * 配置一次即可，硬件自动插入死区，无需软件干预 */</span>
 
-<span class="code-comment">// 关键寄存器：TIM1-&gt;BDTR（刹车和死区控制寄存器）</span>
-<span class="code-comment">// DTG[7:0] 位编码死区时间，举例（72MHz主频，tDTS=13.89ns）：</span>
-<span class="code-comment">//   DTG=0x40 → 约 0.89us  （小功率/快速MOS，DTG[7:5]=01x段）</span>
-<span class="code-comment">//   DTG=0x80 → 约 3.56us  （中等功率MOS，DTG[7:5]=10x段，典型值）</span>
-<span class="code-comment">//   DTG=0xA0 → 约 4.45us  （大功率/慢速MOS，更保守）</span>
-<span class="code-comment">// 公式（DTG[7:5]=10x段）：t_DTG = (32 + DTG[4:0]) × 8 × tDTS</span>
+<span class="code-comment">// 死区时间配置：不同MCU寄存器不同，但原理一致——
+// 在上下桥切换的瞬间，强制两管都关断一小段时间(几百ns~几us)
+// 例如 STM32 高级定时器的 BDTR.DTG[7:0] 字段（参考公式见下方注释）
+//   72MHz主频下：DTG=0x40→0.89us, DTG=0x80→3.56us, DTG=0xA0→4.45us
+//   公式(DTG[7:5]=10x段)：t_DTG = (32 + DTG[4:0]) × 8 × tDTS */</span>
 
+<span class="code-comment">/* 平台无关的抽象：由调用方实现底层PWM配置 */</span>
+<span class="code-keyword">extern void</span> <span class="code-func">PWM_Init_3Phase_Complementary</span>(<span class="code-keyword">uint16_t</span> dead_time_ns);  <span class="code-comment">// 启动3对互补PWM+死区</span>
+<span class="code-keyword">extern void</span> <span class="code-func">PWM_SetDuty</span>(<span class="code-keyword">uint8_t</span> phase, <span class="code-keyword">uint16_t</span> duty);     <span class="code-comment">// 设置某相占空比</span>
+<span class="code-keyword">extern void</span> <span class="code-func">PWM_SetFloat</span>(<span class="code-keyword">uint8_t</span> phase);                  <span class="code-comment">// 某相悬空</span>
+
+<span class="code-comment">/* 初始化：配置死区时间(典型1~2us) + 启动PWM */</span>
 <span class="code-keyword">void</span> <span class="code-func">BLDC_PWM_Init</span>(<span class="code-keyword">void</span>) {
-  TIM_HandleTypeDef *htim = &amp;htim1;     <span class="code-comment">// 高级定时器</span>
-  htim->Instance->BDTR |= <span class="code-number">0x80</span>;          <span class="code-comment">// 设置死区约3.56us</span>
-  htim->Instance->BDTR |= TIM_BDTR_MOE;  <span class="code-comment">// 主输出使能（不开就无PWM）*/</span>
-
-  <span class="code-comment">// 启动3对互补PWM（CH1/CH1N, CH2/CH2N, CH3/CH3N）*/</span>
-  HAL_TIM_PWM_Start(htim, TIM_CHANNEL_1);
-  HAL_TIMEx_PWMN_Start(htim, TIM_CHANNEL_1);
-  HAL_TIM_PWM_Start(htim, TIM_CHANNEL_2);
-  HAL_TIMEx_PWMN_Start(htim, TIM_CHANNEL_2);
-  HAL_TIM_PWM_Start(htim, TIM_CHANNEL_3);
-  HAL_TIMEx_PWMN_Start(htim, TIM_CHANNEL_3);
+  <span class="code-func">PWM_Init_3Phase_Complementary</span>(<span class="code-number">1780</span>);   <span class="code-comment">// 死区1.78us，按MOS管开关特性选</span>
 }
 
-<span class="code-comment">/* 调速 = 改变占空比。g_duty: 0~ARR */</span>
+<span class="code-comment">/* 调速 = 改变占空比。g_duty: 0~period */</span>
 <span class="code-keyword">void</span> <span class="code-func">BLDC_SetDuty</span>(<span class="code-keyword">uint16_t</span> duty) {
   g_duty = duty;
   <span class="code-comment">// 实际CCR在换向时按查表结果更新到对应相 */</span>
@@ -1322,7 +1317,9 @@ TIM_HandleTypeDef htim1;
   <span class="code-comment">// 6. SVPWM → 写入定时器CCR</span>
   <span class="code-keyword">uint16_t</span> ca, cb, cc;
   <span class="code-func">SVPWM</span>(valpha, vbeta, g_vbus, PWM_PERIOD, &amp;ca, &amp;cb, &amp;cc);
-  TIM1->CCR1 = ca;  TIM1->CCR2 = cb;  TIM1->CCR3 = cc;
+  <span class="code-func">PWM_SetDuty</span>(<span class="code-number">0</span>, ca);  <span class="code-comment">// 写A相占空比（平台相关：写定时器CCR）*/</span>
+  <span class="code-func">PWM_SetDuty</span>(<span class="code-number">1</span>, cb);  <span class="code-comment">// B相</span>
+  <span class="code-func">PWM_SetDuty</span>(<span class="code-number">2</span>, cc);  <span class="code-comment">// C相</span>
 }</div>
 
           <div class="info-box tip mt-3">
