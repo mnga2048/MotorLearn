@@ -67,10 +67,10 @@ const MotorData = {
     title: '电机知识学习平台（制作完善中）',
     subtitle: '面向小白的系统化电机控制学习指南，从入门到进阶，目标是一站式掌握电机知识 owo',
     stats: [
-      { label: '知识章节', value: '30+', color: 'blue' },
+      { label: '知识章节', value: '17', color: 'blue' },
       { label: '电机类型', value: '5', color: 'green' },
-      { label: '实战项目', value: '6', color: 'purple' },
-      { label: '计算工具', value: '4', color: 'orange' },
+      { label: '代码示例', value: '30+', color: 'purple' },
+      { label: '交互图表', value: '6', color: 'orange' },
     ],
     quickStart: [
       { id: 'beginner-em', title: '电磁学基础', desc: '从安培力、法拉第定律开始，建立电磁学知识框架', icon: '⚡', color: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600', level: '入门' },
@@ -1355,6 +1355,61 @@ TIM_HandleTypeDef htim1;
             <strong>Clarke变换</strong>将三相静止坐标系映射到两相静止坐标系（减少一维）。
             <strong>Park变换</strong>将两相静止坐标系旋转到与转子磁场同步的参考坐标系，将交流变为直流。
           </p>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">一、Clarke变换（三相 → 两相静止）</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            把空间互差120°的三相 (a,b,c) 投影到正交的 (α,β) 轴。几何上就是把三个120°向量合成两个90°向量。注意 <strong>a+b+c=0</strong>（三相平衡时），所以只需两相就能完整表达。
+          </p>
+          <div class="formula-block">
+            <div class="text-left">
+              <strong>幅值不变版</strong>（FOC常用，系数2/3）：<br>
+              $\\begin{bmatrix} v_\\alpha \\\\ v_\\beta \\end{bmatrix} = \\frac{2}{3}\\begin{bmatrix} 1 & -\\frac{1}{2} & -\\frac{1}{2} \\\\ 0 & \\frac{\\sqrt{3}}{2} & -\\frac{\\sqrt{3}}{2} \\end{bmatrix}\\begin{bmatrix} v_a \\\\ v_b \\\\ v_c \\end{bmatrix}$
+            </div>
+            <div class="text-sm text-gray-500 mt-2">简化式（已知a+b+c=0时）：v_α = v_a，v_β = (v_a + 2v_b)/√3</div>
+          </div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">二、Park变换（静止 → 旋转 dq）</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            把 (α,β) 绕原点旋转 θ 角（θ = 转子电角度），得到跟随转子旋转的 (d,q) 坐标系。关键效果：<strong>原来随时间正弦变化的量，在 dq 坐标系下变成了直流量</strong>——这正是能用 PI 控制的条件。
+          </p>
+          <div class="formula-block">
+            $\\begin{bmatrix} v_d \\\\ v_q \\end{bmatrix} = \\begin{bmatrix} \\cos\\theta & \\sin\\theta \\\\ -\\sin\\theta & \\cos\\theta \\end{bmatrix}\\begin{bmatrix} v_\\alpha \\\\ v_\\beta \\end{bmatrix}$
+            <div class="text-sm text-gray-500 mt-2">d轴与转子磁极方向对齐（励磁分量），q轴超前90°（转矩分量）</div>
+          </div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">三、反变换（dq → αβ → abc）</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            PI 控制器输出 (vd, vq) 后，需要反变换回三相才能驱动逆变器。反Park 用 -θ，反Clarke 用 Clarke 矩阵的伪逆：
+          </p>
+          <div class="formula-block">
+            <div class="text-left">
+              <strong>反Park</strong>：<br>
+              $\\begin{bmatrix} v_\\alpha \\\\ v_\\beta \\end{bmatrix} = \\begin{bmatrix} \\cos\\theta & -\\sin\\theta \\\\ \\sin\\theta & \\cos\\theta \\end{bmatrix}\\begin{bmatrix} v_d \\\\ v_q \\end{bmatrix}$
+              <strong>反Clarke</strong>（αβ → abc，幅值不变版）：<br>
+              $v_a = v_\\alpha, \\quad v_b = -\\frac{1}{2}v_\\alpha + \\frac{\\sqrt{3}}{2}v_\\beta, \\quad v_c = -\\frac{1}{2}v_\\alpha - \\frac{\\sqrt{3}}{2}v_\\beta$
+            </div>
+          </div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">四、两种归一化版本的对比</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            Clarke 变换有<strong>幅值不变</strong>和<strong>功率不变</strong>两种系数，不同教材/库用的不同，调试时务必统一：
+          </p>
+          <div class="overflow-x-auto"><table class="compare-table">
+            <thead><tr><th>版本</th><th>Clarke系数</th><th>特点</th><th>常见出处</th></tr></thead>
+            <tbody>
+              <tr><td class="font-medium">幅值不变</td><td>2/3</td><td>变换前后相电压幅值相等，直观</td><td>多数FOC教程、STM32 MC SDK</td></tr>
+              <tr><td class="font-medium">功率不变</td><td>√(2/3)</td><td>变换前后功率守恒，理论严格</td><td>电机学教材、MATLAB</td></tr>
+            </tbody>
+          </table></div>
+          <div class="info-box warning mt-3"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg><div><strong>混用是大坑</strong>：如果你的 Clarke 用 2/3（幅值不变），但参考代码用 √(2/3)（功率不变），PID 参数会差 √2 倍，调出来的电机力矩完全不对。移植代码时第一件事就是确认对方的变换系数。</div></div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">五、几何直观：从旋转到静止</h3>
+          <div class="step-list">
+            <div class="step-item"><div><strong>abc 三相</strong>：三个互差120°的旋转向量，合成一个旋转磁场。难以直接控制（三个量都在变）。</div></div>
+            <div class="step-item"><div><strong>αβ 两相</strong>：Clarke 把三个向量合成为两个正交向量，仍在旋转，但少了一个维度。</div></div>
+            <div class="step-item"><div><strong>dq 旋转</strong>：Park 把坐标系"跟着转子转"，于是原本旋转的向量在 dq 里变成<strong>静止的常量</strong>。这就是"交流变直流"的真相。</div></div>
+          </div>
+          <div class="info-box tip mt-3"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>记忆诀窍</strong>：Clarke 是"3变2"（减维），Park 是"动变静"（旋转坐标系）。FOC 的所有控制都在 dq 里做，最后反变换回 abc 才能驱动电机。完整 C 代码见 <a href="#" onclick="navigateTo('foc-impl');return false;" style="color:var(--primary)">FOC的C语言实现</a>。</div></div>
         `,
       },
       {
@@ -1390,6 +1445,88 @@ TIM_HandleTypeDef htim1;
             <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
             <div><strong>零速启动问题</strong>：无感控制在零速和极低速时无法工作（无反电动势可测），通常需要先使用开环启动或高频注入，达到一定转速后切换到SMO/EKF。</div>
           </div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">一、反电动势过零检测（最基础的无感方式）</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            用于六步换向的最简单无感方案。原理：未通电的那一相绕组上会感应出反电动势（BEMF），当 BEMF <strong>过零</strong>（穿过零点）时，再过 30°电角度就该换向了。只需一个比较器或 ADC 检测悬空相电压：
+          </p>
+          <div class="formula-block">
+            $V_{BEMF} = V_{phase} - \\frac{V_a + V_b + V_c}{3}$
+            <div class="text-sm text-gray-500 mt-2">悬空相电压减去中点电压 = 反电动势。过零点后延时30°换向。</div>
+          </div>
+          <div class="info-box info mt-3"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>为什么是30°</strong>：相邻两次换向间隔60°电角度，而过零点恰好在两次换向的中间（每段60°的中点），所以过零后再走30°就是下一次换向点。实际代码里用<strong>定时器延时</strong>实现这30°（延时随转速变化，转速越高延时越短）。</div></div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">二、滑模观测器 SMO（FOC无感的主流方案）</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            SMO 构造一个<strong>电流观测模型</strong>，用估算的反电动势驱动模型，让观测电流逼近真实电流。当两者差值趋零时，估算反电动势就接近真实值，进而算出转子角度。核心方程（αβ坐标系）：
+          </p>
+          <div class="formula-block">
+            <div class="text-left">
+              观测器模型（模仿电机电气方程）：<br>
+              $\\hat{\\dot I}_\\alpha = -\\frac{R}{L}\\hat I_\\alpha - \\frac{1}{L}\\hat E_\\alpha + \\frac{1}{L}V_\\alpha$
+              滑模面（电流误差）：$s = \\hat I_\\alpha - I_\\alpha$<br>
+              反电动势估算（符号函数驱动）：<br>
+              $\\hat E_\\alpha = K \\cdot \\text{sign}(s), \\quad \\hat E_\\beta = K \\cdot \\text{sign}(s_\\beta)$
+            </div>
+            <div class="text-sm text-gray-500 mt-2">ℕ表示估算值。sign函数让观测电流"滑"向真实电流，此时估算的反电动势 ≋ 真实值</div>
+          </div>
+          <div class="code-block"><span class="code-comment">/* SMO 观测器核心（简化版纯C，每个PWM周期调用一次）
+ * 输入：实际电压Vα/Vβ、实际电流Iα/Iβ、电机参数R/L
+ * 输出：估算反电动势Eα/Eβ → 后续用atan2求角度 */</span>
+<span class="code-keyword">typedef struct</span> {
+  <span class="code-keyword">float</span> R, L;              <span class="code-comment">// 相电阻、相电感</span>
+  <span class="code-keyword">float</span> K_slide;          <span class="code-comment">// 滑模增益（调试参数）*/</span>
+  <span class="code-keyword">float</span> I_hat_alpha;      <span class="code-comment">// 观测电流α</span>
+  <span class="code-keyword">float</span> I_hat_beta;       <span class="code-comment">// 观测电流β</span>
+  <span class="code-keyword">float</span> E_hat_alpha;      <span class="code-comment">// 估算反电动势α</span>
+  <span class="code-keyword">float</span> E_hat_beta;       <span class="code-comment">// 估算反电动势β</span>
+} SMO_t;
+
+<span class="code-keyword">void</span> <span class="code-func">SMO_Update</span>(SMO_t *o, <span class="code-keyword">float</span> Va, <span class="code-keyword">float</span> Vb,
+                   <span class="code-keyword">float</span> Ia, <span class="code-keyword">float</span> Ib, <span class="code-keyword">float</span> dt) {
+  <span class="code-comment">// 1. 电流误差（滑模面）*/</span>
+  <span class="code-keyword">float</span> err_a = o->I_hat_alpha - Ia;
+  <span class="code-keyword">float</span> err_b = o->I_hat_beta  - Ib;
+
+  <span class="code-comment">// 2. 用符号函数估算反电动势（滑模切换）*/</span>
+  o->E_hat_alpha = (err_a &gt; <span class="code-number">0</span> ? -o->K_slide : o->K_slide);
+  o->E_hat_beta  = (err_b &gt; <span class="code-number">0</span> ? -o->K_slide : o->K_slide);
+
+  <span class="code-comment">// 3. 更新观测电流（前向欧拉积分）*/</span>
+  o->I_hat_alpha += dt * (-o->R/o->L * o->I_hat_alpha - o->E_hat_alpha/o->L + Va/o->L);
+  o->I_hat_beta  += dt * (-o->R/o->L * o->I_hat_beta  - o->E_hat_beta /o->L + Vb/o->L);
+}
+
+<span class="code-comment">/* 从反电动势求转子电角度
+ * Eα、Eβ 是正交的反电动势分量，atan2直接得角度 */</span>
+<span class="code-keyword">float</span> <span class="code-func">SMO_GetAngle</span>(<span class="code-keyword">const</span> SMO_t *o) {
+  <span class="code-comment">// 注意：E_hat需先经低通滤波去除sign函数的高频抖动（颤振）*/</span>
+  <span class="code-keyword">return</span> <span class="code-func">atan2f</span>(-o->E_hat_beta, -o->E_hat_alpha);
+}</div>
+          <div class="info-box warning mt-3"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg><div><strong>SMO的两大难点</strong>：① <strong>颤振(chattering)</strong>——sign函数在零点附近高频切换，导致估算角度抖动，必须加低通滤波；② <strong>K_slide难调</strong>——太小收敛慢，太大会振荡。工程上常把 sign 换成 sat(饱和函数)或 sigmoid 来软化切换。</div></div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">三、三段式启动流程（解决零速问题）</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            所有基于反电动势的无感方案都<strong>无法在零速工作</strong>（转速为零时反电动势为零）。工业上用"三段式启动"过渡：
+          </p>
+          <div class="step-list">
+            <div class="step-item"><div><strong>阶段1：预定位</strong>（0速）— 给某两相通入固定电流，把转子"拉"到已知电角度位置（如0°）。持续数百ms确保转子到位。</div></div>
+            <div class="step-item"><div><strong>阶段2：强拖开环</strong>（低速）— 按固定斜率递增电角度θ，强制输出对应PWM，电机被动跟随。此阶段转速低、反电动势弱，无法闭环。</div></div>
+            <div class="step-item"><div><strong>阶段3：切闭环</strong>（达到阈值转速）— 当转速足够高（反电动势可测），切换到SMO/EKF估算角度，进入闭环FOC。切换瞬间要平滑过渡，否则会抖动。</div></div>
+          </div>
+          <div class="info-box tip mt-3"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>零速且需要大扭矩的场景</strong>（如电动车起步、机械臂关节）必须用<strong>高频注入(HFI)</strong>而非反电动势法。HFI 利用 IPM 电机的凸极效应，注入高频电压脉冲，从电流响应中提取转子位置，可工作在真正的零速。代价是仅适用于凸极电机，且会引入额外噪声。</div></div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">四、各方法适用速段对比</h3>
+          <div class="overflow-x-auto"><table class="compare-table">
+            <thead><tr><th>方法</th><th>零速</th><th>低速</th><th>中高速</th><th>计算量</th><th>适用电机</th></tr></thead>
+            <tbody>
+              <tr><td class="font-medium">BEMF过零</td><td>❌</td><td>❌</td><td>✅</td><td>极低</td><td>BLDC六步换向</td></tr>
+              <tr><td class="font-medium">SMO观测器</td><td>❌</td><td>⚠️(需启动)</td><td>✅</td><td>中</td><td>SPM/IPM的FOC</td></tr>
+              <tr><td class="font-medium">高频注入HFI</td><td>✅</td><td>✅</td><td>❌</td><td>高</td><td>仅IPM(凸极)</td></tr>
+              <tr><td class="font-medium">卡尔曼EKF</td><td>⚠️</td><td>✅</td><td>✅</td><td>极高</td><td>所有类型(需精确模型)</td></tr>
+            </tbody>
+          </table></div>
+          <div class="info-box info mt-3"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>工程建议</strong>：低成本BLDC(风扇/水泵)用 BEMF过零即可；高性能FOC(无人机/云台)用 SMO + 三段式启动；伺服级精度用编码器放弃无感。无感省的是传感器成本，但调试难度数倍增加，<strong>学习阶段建议先用编码器把FOC跑通，再尝试无感</strong>。</div></div>
         `,
       },
       {
