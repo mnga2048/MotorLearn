@@ -2343,99 +2343,147 @@ Debug_Sample_t g_dbg_buf[DBG_BUF_SIZE];
         icon: '📐',
         tags: ['仿真', 'Matlab', '必学'],
         content: `
-          <h3 class="text-lg font-semibold mb-3">为什么要学 Matlab 仿真</h3>
-          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-4">
-            回顾 <a href="#" onclick="navigateTo('engineering-validation');return false;" style="color:var(--primary)">工程验证方法论</a> 里的 V 模型：<strong>"算法仿真"是第二步，在硬件在环之前</strong>。Matlab（含 Simulink）是控制仿真的事实标准——在仿真里验证算法逻辑、初估参数、看响应曲线，零成本试错。仿真通过了再移植到 MCU，能省掉大量硬件调试时间。
+          <h3 class="text-lg font-semibold mb-3">Matlab 是什么：工科生的"科学计算器"</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-3">
+            <strong>MATLAB</strong> = Matrix Laboratory（矩阵实验室），是工科领域（自动化、电气、机械、通信）最通用的<strong>科学计算软件</strong>。你可以把它理解成一个"超级计算器+画图工具+仿真平台"——输入公式立即出结果，画图只需一行命令，搭控制框图像拼积木。
           </p>
-          <div class="info-box tip mb-6"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>没装Matlab怎么办</strong>：本节末尾有一个<strong>在线Python仿真沙盒</strong>，用 scipy 控制库（语法接近 Matlab）直接在浏览器跑仿真，无需安装任何软件。先用沙盒理解原理，再回 Matlab 做完整仿真。</div></div>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-3">
+            对学电机控制的你来说，Matlab 的核心价值是<strong>"仿真"</strong>：在电脑上虚拟一个电机+控制器，改参数立即看响应，<strong>不用碰硬件就能验证算法对不对</strong>。这是从"凭感觉调参"到"科学设计"的关键工具。
+          </p>
+          <div class="info-box info mb-6"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>没钱买正版怎么办</strong>：① 学校通常有正版授权（问实验室或信息中心）；② <strong>GNU Octave</strong>（免费开源，语法95%兼容Matlab，控制仿真能用）；③ 本节末尾的<strong>Python沙盒</strong>（scipy语法接近Matlab，浏览器直接跑）。先用免费方案学概念，工作后再用正版。</div></div>
 
-          <h3 class="text-lg font-semibold mb-3 mt-6">一、最简单的仿真：直流电机传递函数 + 阶跃响应</h3>
+          <h3 class="text-lg font-semibold mb-3 mt-6">一、Matlab 界面与基本操作（5分钟上手）</h3>
           <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
-            直流电机可简化为二阶系统：<strong>电气环节</strong>(L·di/dt + R·i = V) + <strong>机械环节</strong>(J·dω/dt + b·ω = K·i)。拉普拉斯变换后得到从电压到转速的传递函数：
+            打开 Matlab，你会看到几个核心窗口：
           </p>
-          <div class="formula-block">
-            $G(s) = \\frac{\\omega(s)}{V(s)} = \\frac{K}{(Ls+R)(Js+b) + K^2}$
-            <div class="text-sm text-gray-500 mt-2">K=反电动势/转矩常数 | R=电阻 | L=电感 | J=转动惯量 | b=阻尼</div>
-          </div>
-          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
-            Matlab 用 <code>tf</code>（transfer function）建立传函，<code>step</code> 看阶跃响应——只有几行代码：
-          </p>
-          <div class="code-block"><span class="code-comment">%% 直流电机阶跃响应仿真（Matlab/Octave m脚本）</span>
-<span class="code-comment">% 电机参数（典型小型直流电机）</span>
-R = <span class="code-number">1.0</span>;      <span class="code-comment">% 电阻(Ω)</span>
-L = <span class="code-number">0.5e-3</span>;   <span class="code-comment">% 电感(H)</span>
-K = <span class="code-number">0.01</span>;     <span class="code-comment">% 反电动势=转矩常数</span>
-J = <span class="code-number">0.01</span>;     <span class="code-comment">% 转动惯量(kg·m²)</span>
-b = <span class="code-number">0.1</span>;      <span class="code-comment">% 阻尼系数</span>
+          <div class="overflow-x-auto mb-3"><table class="compare-table">
+            <thead><tr><th>窗口</th><th>位置</th><th>作用</th></tr></thead>
+            <tbody>
+              <tr><td class="font-medium">命令窗口(Command Window)</td><td>中间</td><td>输入命令立即执行，像高级计算器。输 <code>2+3</code> 回车得 5</td></tr>
+              <tr><td class="font-medium">工作区(Workspace)</td><td>右侧</td><td>显示当前所有变量及其值，鼠标可查看</td></tr>
+              <tr><td class="font-medium">当前文件夹</td><td>左侧</td><td>文件管理，.m 脚本文件在这里</td></tr>
+              <tr><td class="font-medium">编辑器(Editor)</td><td>新标签</td><td>写多行脚本(.m文件)的地方，类似代码编辑器</td></tr>
+              <tr><td class="font-medium">图像窗口(Figure)</td><td>弹窗</td><td>plot 命令画的图在这里显示</td></tr>
+            </tbody>
+          </table></div>
+          <div class="info-box tip mb-3"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>最简单的入门</strong>：在命令窗口直接敲 <code>a = [1 2 3]</code>（定义数组）、<code>a * 2</code>（每个元素乘2）、<code>plot(a)</code>（画图）。不需要写完整程序，<strong>交互式逐行执行</strong>是 Matlab 的特点。</div></div>
 
-<span class="code-comment">% 分母：(Ls+R)(Js+b) + K²  → 展开成多项式</span>
+          <h3 class="text-lg font-semibold mb-3 mt-6">二、基础语法速览（对照C语言）</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            如果你学过 C，Matlab 语法很简单。核心区别：<strong>变量默认是矩阵/数组</strong>，运算天然支持向量。
+          </p>
+          <div class="code-block"><span class="code-comment">%% Matlab 基础语法（对比C）</span>
+
+<span class="code-comment">% 1. 变量与数组（无需声明类型，分号结尾=不显示结果）</span>
+x = <span class="code-number">5</span>;            <span class="code-comment">% 标量（C: int x=5;）</span>
+v = [<span class="code-number">1</span> <span class="code-number">2</span> <span class="code-number">3</span> <span class="code-number">4</span>];   <span class="code-comment">% 行向量（C: int v[]={1,2,3,4};）</span>
+A = [<span class="code-number">1</span> <span class="code-number">2</span>; <span class="code-number">3</span> <span class="code-number">4</span>];   <span class="code-comment">% 2x2矩阵（分号换行）</span>
+t = <span class="code-number">0</span>:<span class="code-number">0.01</span>:<span class="code-number">1</span>;       <span class="code-comment">% 0到1，步长0.01 → [0 0.01 0.02 ... 1]</span>
+
+<span class="code-comment">% 2. 运算（点乘.* 是逐元素，* 是矩阵乘）</span>
+y = v * <span class="code-number">2</span>;         <span class="code-comment">% 标量乘：每个元素×2</span>
+z = v .* v;         <span class="code-comment">% 逐元素平方：[1 4 9 16]</span>
+w = sin(t);         <span class="code-comment">% 函数自动作用于整个数组（向量化）</span>
+
+<span class="code-comment">% 3. 画图（一行搞定）</span>
+plot(t, w);         <span class="code-comment">% 画 sin 波形</span>
+xlabel(<span class="code-string">'时间(s)'</span>); ylabel(<span class="code-string">'幅值'</span>);
+title(<span class="code-string">'正弦波'</span>); grid on;
+
+<span class="code-comment">% 4. 控制流（和C几乎一样）</span>
+<span class="code-keyword">for</span> i = <span class="code-number">1</span>:<span class="code-number">10</span>        <span class="code-comment">% for循环（注意Matlab从1开始！）</span>
+    <span class="code-keyword">if</span> i &gt; <span class="code-number">5</span>
+        disp(i);   <span class="code-comment">% 打印</span>
+    <span class="code-end">end</span>
+<span class="code-end">end</span>
+
+<span class="code-comment">% 5. 自定义函数（单独存为 .m 文件，文件名=函数名）</span>
+<span class="code-keyword">function</span> y = myPID(err, Kp)
+    y = Kp * err;
+<span class="code-end">end</span></div>
+          <div class="info-box warning"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg><div><strong>最大坑：Matlab索引从1开始</strong>，不是C/Python的从0！<code>v(1)</code>是第一个元素。<strong>注释用 %</strong>（不是 //）。<strong>语句结尾分号 ; 表示"执行但不显示"，无分号会打印结果</strong>。</div></div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">三、控制仿真三板斧：tf、step、feedback</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            电机控制仿真90%的工作用这三个函数完成。记住它们，就能做大部分仿真：
+          </p>
+          <div class="overflow-x-auto mb-3"><table class="compare-table">
+            <thead><tr><th>函数</th><th>作用</th><th>示例</th><th>Python等效(scipy)</th></tr></thead>
+            <tbody>
+              <tr><td class="font-mono">tf(num,den)</td><td>建立传递函数</td><td>G = tf([1],[1 2 5])</td><td>signal.TransferFunction([1],[1,2,5])</td></tr>
+              <tr><td class="font-mono">step(G)</td><td>画阶跃响应</td><td>step(G); grid on</td><td>signal.step(G)</td></tr>
+              <tr><td class="font-mono">feedback(G,H)</td><td>求闭环传函 G/(1+GH)</td><td>T = feedback(G,1)</td><td>手动算(见沙盒)</td></tr>
+              <tr><td class="font-mono">bode(G)</td><td>画频率响应(波特图)</td><td>bode(G)</td><td>signal.bode(G)</td></tr>
+              <tr><td class="font-mono">pole(G)</td><td>求极点(判稳定性)</td><td>pole(G)</td><td>np.roots(den)</td></tr>
+            </tbody>
+          </table></div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">四、实用案例：阶跃响应看电机响应速度</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            <strong>为什么学这个</strong>：上硬件前，你不知道"给电机5V电压，它要多久才能达到目标转速"。用 step 仿真一眼看出来——这就是<strong>零成本预判硬件行为</strong>。
+          </p>
+          <div class="code-block"><span class="code-comment">%% 案例1：电机阶跃响应（给5V，看转速怎么爬升）</span>
+R = <span class="code-number">1.0</span>; L = <span class="code-number">0.5e-3</span>; K = <span class="code-number">0.01</span>; J = <span class="code-number">0.01</span>; b = <span class="code-number">0.1</span>;
+
+<span class="code-comment">% 分母：(Ls+R)(Js+b) + K²</span>
 num = K;
 den = conv([L R], [J b]) + [<span class="code-number">0 0 K*K</span>];
-
-<span class="code-comment">% 建立传递函数 G(s) = num/den</span>
 G = tf(num, den);
 
-<span class="code-comment">% 画阶跃响应（给5V电压，看转速怎么爬升）</span>
 figure;
-step(G * <span class="code-number">5</span>);    <span class="code-comment">% 乘5V输入</span>
-title(<span class="code-string">'直流电机阶跃响应(5V输入)'</span>);
-xlabel(<span class="code-string">'时间(s)'</span>); ylabel(<span class="code-string">'转速(rad/s)'</span>);
-grid on;</div>
-          <div class="info-box info"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>关键函数</strong>：<code>tf(num,den)</code>建传函；<code>step(G)</code>画阶跃响应；<code>bode(G)</code>画频率响应；<code>pole(G)</code>看极点(判稳)。这些是 Matlab 控制仿真的核心，记住这4个就能做80%的工作。</div></div>
+step(G * <span class="code-number">5</span>);          <span class="code-comment">% 5V输入的阶跃响应</span>
+title(<span class="code-string">'电机阶跃响应：给5V电压，转速爬升曲线'</span>);
+xlabel(<span class="code-string">'时间(s)'</span>); ylabel(<span class="code-string">'转速(rad/s)'</span>); grid on;
+<span class="code-comment">% 从图上能读出：上升时间约XXms、稳态转速XX rad/s</span></div>
+          <div class="info-box tip"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>解读阶跃响应图</strong>：X轴时间，Y轴转速。曲线<strong>陡峭=响应快</strong>，<strong>平缓=响应慢</strong>。如果有<strong>凸起超过稳态值=超调</strong>（电机冲过头了）。理想曲线是快速上升、平滑到达、无超调。</div></div>
 
-          <h3 class="text-lg font-semibold mb-3 mt-6">二、PID 闭环仿真：调参的零成本试验场</h3>
+          <h3 class="text-lg font-semibold mb-3 mt-6">五、实用案例：PID参数对比（一次画多条曲线）</h3>
           <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
-            把电机模型包进<strong>PID闭环</strong>，在仿真里随意改 Kp/Ki/Kd 看响应——这正是工程验证方法论里强调的"仿真里零成本试错"：
+            <strong>为什么学这个</strong>：这就是 <a href="#" onclick="navigateTo('engineering-validation');return false;" style="color:var(--primary)">工程验证方法论</a> 强调的"仿真里零成本试错"。改 Kp/Ki/Kd 看曲线，<strong>选定最佳参数再上硬件</strong>。
           </p>
-          <div class="code-block"><span class="code-comment">%% PID控制直流电机转速（闭环仿真）</span>
-s = tf(<span class="code-string">'s'</span>);
-G_motor = K / (L*s*J*s + L*s*b + R*J*s + R*b + K*K);  <span class="code-comment">% 电机传函</span>
+          <div class="code-block"><span class="code-comment">%% 案例2：对比不同Kp的PID闭环响应</span>
+s = tf(<span class="code-string">'s'</span>);                      <span class="code-comment">% 用符号s定义传函</span>
+G = K / (L*J*s^<span class="code-number">2</span> + (L*b+R*J)*s + R*b + K*K);
 
-<span class="code-comment">% PID控制器传函：C(s) = Kp + Ki/s + Kd*s</span>
-Kp = <span class="code-number">5</span>;  Ki = <span class="code-number">10</span>;  Kd = <span class="code-number">0.05</span>;
-C_pid = Kp + Ki/s + Kd*s;
-
-<span class="code-comment">% 闭环传函：T = C·G / (1 + C·G)</span>
-T = feedback(C_pid * G_motor, <span class="code-number">1</span>);
-
-<span class="code-comment">% 对比不同Kp的阶跃响应（一次画多条）</span>
 figure; hold on;
-<span class="code-keyword">for</span> kp = [<span class="code-number">1 3 5 10 20</span>]
-    C = kp + Ki/s + Kd*s;
-    T_kp = feedback(C * G_motor, <span class="code-number">1</span>);
-    step(T_kp);
+<span class="code-keyword">for</span> kp = [<span class="code-number">1</span> <span class="code-number">3</span> <span class="code-number">5</span> <span class="code-number">10</span> <span class="code-number">20</span>]      <span class="code-comment">% 5组Kp</span>
+    C = kp + <span class="code-number">10</span>/s;              <span class="code-comment">% PI控制器</span>
+    T = feedback(C*G, <span class="code-number">1</span>);        <span class="code-comment">% 闭环</span>
+    step(T);                   <span class="code-comment">% 画阶跃响应</span>
 <span class="code-end">end</span>
 legend(<span class="code-string">'Kp=1'</span>,<span class="code-string">'Kp=3'</span>,<span class="code-string">'Kp=5'</span>,<span class="code-string">'Kp=10'</span>,<span class="code-string">'Kp=20'</span>);
-title(<span class="code-string">'不同Kp下的转速阶跃响应'</span>); grid on; hold off;</div>
-          <div class="info-box tip mt-3"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>这就是"科学调参"</strong>：仿真里一行 <code>for kp=[...]</code> 就能同时看5组参数的响应对比，<strong>哪个Kp上升快、哪个超调大一目了然</strong>。选定后把参数移植到MCU，比在硬件上一次次试快100倍。这也呼应了 <a href="#" onclick="navigateTo('engineering-validation');return false;" style="color:var(--primary)">工程验证方法论</a> 里"先仿真再上硬件"的原则。</div></div>
+title(<span class="code-string">'不同Kp下的转速响应——一眼看出哪个最好'</span>);
+grid on; hold off;
+<span class="code-comment">% 结论：Kp=1太慢，Kp=20超调振荡，Kp=5~10平衡最佳</span></div>
+          <div class="info-box info"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>这就是科学调参</strong>：仿真里5行代码同时画5条曲线，<strong>哪个Kp上升快、哪个超调大、哪个振荡一目了然</strong>。选定后移植到MCU，比在硬件上一次次试快100倍。</div></div>
 
-          <h3 class="text-lg font-semibold mb-3 mt-6">三、Simulink 框图仿真（更适合复杂系统）</h3>
+          <h3 class="text-lg font-semibold mb-3 mt-6">六、Simulink：拖拽搭框图（复杂系统利器）</h3>
           <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
-            对于<strong>多模块系统</strong>（如 FOC = 电流环+速度环+位置环+坐标变换+PWM），用 m 脚本写传函会很繁琐。Simulink 用<strong>拖拽框图</strong>搭建，直观且接近硬件结构：
+            对于<strong>多模块系统</strong>（FOC = 坐标变换+PID+SVPWM+电机），用 m 脚本写传函繁琐。Simulink 用<strong>拖拽框图</strong>搭建，像拼积木：
           </p>
           <div class="step-list">
-            <div class="step-item"><div><strong>典型 FOC Simulink 模型</strong>：PI控制器块 → Park/Clarke 变换块 → SVPWM 块 → 电机模型块 → 编码器反馈块，用线连成闭环。</div></div>
-            <div class="step-item"><div><strong>优势</strong>：每个模块对应一个物理单元，调试时可单独查看任一中间信号(如Id/Iq)；改参数只需双击模块填数字。</div></div>
-            <div class="step-item"><div><strong>Simscape Electrical</strong>：Simulink 的电气库，提供现成的 MOSFET、电机、传感器模型，能仿真到<strong>电路级</strong>（含开关纹波）。</div></div>
+            <div class="step-item"><div><strong>建模方式</strong>：从模块库拖入"PID控制器""传递函数""求和点""示波器"，用线连成闭环。每个模块对应一个物理单元。</div></div>
+            <div class="step-item"><div><strong>调试优势</strong>：双击任意模块看/改参数；仿真时用"示波器"模块实时看任意中间信号（如Id/Iq/误差）。</div></div>
+            <div class="step-item"><div><strong>Simscape Electrical</strong>：电气专用库，有现成 MOSFET/电机/编码器模型，能仿真到电路级（含开关纹波）。</div></div>
           </div>
-          <div class="info-box warning"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg><div><strong>仿真精度提醒</strong>：仿真模型用简化传函时<strong>忽略了非线性</strong>(死区、饱和、摩擦静段)。仿真结果偏理想，实测响应通常比仿真差(超调更大、上升更慢)。所以仿真参数只是<strong>起点</strong>，上硬件后仍需微调。</div></div>
+          <div class="info-box warning"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg><div><strong>仿真≠现实</strong>：仿真模型忽略了非线性(死区、饱和、摩擦静段)，结果偏理想。实测通常比仿真差(超调更大)。所以仿真参数只是<strong>起点</strong>，上硬件后仍需微调。</div></div>
 
-          <h3 class="text-lg font-semibold mb-3 mt-6">四、从仿真到代码：参数落地</h3>
+          <h3 class="text-lg font-semibold mb-3 mt-6">七、从仿真到MCU代码：离散化</h3>
           <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
-            仿真调好的 PID 参数，怎么用到 MCU？关键注意<strong>离散化</strong>——仿真是连续时间(s域)，MCU是离散时间(每个控制周期采一次)。连续 PI <code>C(s)=Kp+Ki/s</code> 离散化成：
+            仿真用连续时间(s域)，MCU是离散时间(每个控制周期采一次)。连续PI <code>C(s)=Kp+Ki/s</code> 离散化：
           </p>
           <div class="formula-block">
             $u[k] = u[k-1] + K_p(e[k]-e[k-1]) + K_i \\cdot T_s \\cdot e[k]$
-            <div class="text-sm text-gray-500 mt-2">增量式PID。Ts=控制周期(秒)。这就是上一篇 PID 实现里增量式的由来</div>
+            <div class="text-sm text-gray-500 mt-2">增量式PID。这就是 PID实现篇里代码的数学来源</div>
           </div>
-          <div class="info-box tip"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>Matlab的离散化工具</strong>：<code>C_d = c2d(C, Ts, 'tustin')</code> 自动把连续传函转成离散。Ts 选控制周期(如0.001s)，'tustin'是双线性变换(精度好)。转完用 <code>dstep</code> 看离散响应。</div></div>
+          <div class="info-box tip"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>离散化工具</strong>：<code>C_d = c2d(C, Ts, 'tustin')</code> 自动转换。Ts=控制周期(如0.001s)。转完用 <code>dstep(C_d)</code> 看离散响应，确认离散化没引入过大误差。</div></div>
 
-          <h3 class="text-lg font-semibold mb-3 mt-6">五、动手实验：在线Python仿真沙盒</h3>
+          <h3 class="text-lg font-semibold mb-3 mt-6">八、动手实验：在线Python沙盒</h3>
           <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-3">
-            没装 Matlab？用下面的<strong>在线沙盒</strong>直接跑控制仿真。它用 Python 的 scipy 控制库（语法和 Matlab 几乎一样：<code>tf</code>、<code>step</code>、<code>feedback</code>），改参数点"运行"立即看阶跃响应曲线。
+            没装 Matlab/Octave？用下面的<strong>在线沙盒</strong>直接跑控制仿真。它用 Python 的 scipy 控制库（<code>tf</code>、<code>step</code> 语法和 Matlab 几乎一样），改参数点"运行"立即看阶跃响应曲线——验证你刚学的概念。
           </p>
           <div data-chart="python-sim" class="chart-container" style="min-height:480px;padding:8px"></div>
-          <div class="info-box info mt-3"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>沙盒说明</strong>：首次加载需几秒（浏览器在后台加载 Python 运行时）。左侧改代码（默认是一个PID控制直流电机的仿真），点"▶ 运行"右侧画出阶跃响应。试着改 <code>Kp/Ki</code> 看曲线变化——这就是零成本调参。</div></div>
+          <div class="info-box info mt-3"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>沙盒怎么用</strong>：左侧是可编辑的Python代码（默认是PID直流电机仿真）。改 <code>Kp/Ki/Kd</code> 的数字 → 点"▶ 运行" → 右侧画出新的阶跃响应曲线。<strong>试着把 Kp 改成 1、30、100 看曲线变化</strong>，直观感受"Kp大=快但超调，Kp小=慢但稳"。首次加载约10秒（浏览器在后台下载Python运行时）。</div></div>
         `,
       },
     ],
