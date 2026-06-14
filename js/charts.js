@@ -527,5 +527,121 @@ const Charts = {
 
       render();
     },
+
+    // Python 在线仿真沙盒（基于 Pyodide，浏览器内跑 Python+scipy 控制仿真）
+    'python-sim'(el) {
+      const DEFAULT_CODE = `# 直流电机 PID 转速控制仿真（Python + scipy控制库）
+# 改 Kp / Ki 后点"运行"，看右侧阶跃响应曲线变化
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy import signal
+
+# 电机参数（小型直流电机）
+R, L, K, J, b = 1.0, 0.5e-3, 0.01, 0.01, 0.1
+
+# 电机传递函数 G(s) = K / ((Ls+R)(Js+b) + K^2)
+num = [K]
+den = [L*J, L*b + R*J, R*b + K*K]
+G = signal.TransferFunction(num, den)
+
+# === 改这里调参 ===
+Kp, Ki, Kd = 5.0, 10.0, 0.0   # PID 参数
+# =================
+
+# PID 控制器传函 C(s) = Kp + Ki/s + Kd*s
+num_c = [Kd, Kp, Ki]
+den_c = [1, 0]
+C = signal.TransferFunction(num_c, den_c)
+
+# 闭环 T = C*G / (1 + C*G)
+T = signal.feedback(C * G, 1)
+
+# 画阶跃响应
+t = np.linspace(0, 0.5, 1000)
+t_out, y_out = signal.step(T, T=t)
+
+plt.figure(figsize=(7, 3.5))
+plt.plot(t_out, y_out, 'b-', linewidth=2)
+plt.title(f'PID 转速阶跃响应  (Kp={Kp}, Ki={Ki}, Kd={Kd})')
+plt.xlabel('时间 (s)'); plt.ylabel('转速 (rad/s)')
+plt.grid(True, alpha=0.3)
+plt.tight_layout()
+plt.savefig('/tmp/sim_out.png', dpi=100)
+print(f"仿真完成：稳态值={y_out[-1]:.3f}, 峰值={max(y_out):.3f}, 超调={(max(y_out)-y_out[-1])/y_out[-1]*100:.1f}%")
+`;
+
+      el.innerHTML = `
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
+          <button id="psim-run" style="padding:6px 18px;background:var(--primary);color:#fff;border:none;border-radius:6px;font-size:14px;cursor:pointer;font-weight:600">▶ 运行</button>
+          <button id="psim-reset" style="padding:6px 14px;background:var(--bg-card);color:var(--text-secondary);border:1px solid var(--border);border-radius:6px;font-size:13px;cursor:pointer">重置代码</button>
+          <span id="psim-status" style="font-size:12px;color:var(--text-secondary)">点击运行加载Python环境(首次约10秒)</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div>
+            <div style="font-size:12px;color:var(--text-secondary);margin-bottom:4px">Python 代码（可编辑）：</div>
+            <textarea id="psim-code" style="width:100%;height:340px;font-family:Consolas,monospace;font-size:12px;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg-card);color:var(--text);resize:vertical;line-height:1.5"></textarea>
+          </div>
+          <div>
+            <div style="font-size:12px;color:var(--text-secondary);margin-bottom:4px">输出（图表 + 日志）：</div>
+            <div id="psim-output" style="width:100%;height:340px;border:1px solid var(--border);border-radius:6px;background:var(--bg-card);overflow:auto;padding:4px"></div>
+          </div>
+        </div>`;
+      const codeEl = el.querySelector('#psim-code');
+      const outEl = el.querySelector('#psim-output');
+      const statusEl = el.querySelector('#psim-status');
+      codeEl.value = DEFAULT_CODE;
+
+      let pyodideReady = null;
+      async function getPyodide() {
+        if (pyodideReady) return pyodideReady;
+        statusEl.textContent = '正在加载 Python 运行时...(首次约10秒)';
+        statusEl.style.color = 'var(--warning)';
+        // 动态加载 Pyodide
+        if (!window.loadPyodide) {
+          await new Promise((resolve, reject) => {
+            const s = document.createElement('script');
+            s.src = 'https://cdn.jsdelivr.net/pyodide/v0.25.0/full/pyodide.js';
+            s.onload = resolve; s.onerror = reject;
+            document.head.appendChild(s);
+          });
+        }
+        pyodideReady = window.loadPyodide({ indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.25.0/full/' });
+        const py = await pyodideReady;
+        statusEl.textContent = '加载 scipy/matplotlib 包...';
+        await py.loadPackage(['micropip']);
+        // scipy 较大，用 matplotlib + scipy
+        await py.loadPackage(['matplotlib', 'scipy']);
+        // 配置 matplotlib 用 Agg 后端（无界面，保存图片）
+        py.runPython(`import matplotlib; matplotlib.use('Agg')`);
+        return py;
+      }
+
+      async function runCode() {
+        const btn = el.querySelector('#psim-run');
+        btn.disabled = true;
+        outEl.innerHTML = '<div style="padding:12px;color:var(--text-secondary);font-size:13px">运行中...</div>';
+        try {
+          const py = await getPyodide();
+          // 把 stdout 重定向到 JS
+          py.setStdout({ batched: (s) => { outEl.innerHTML += `<div style="font-family:Consolas;font-size:12px;padding:2px 4px">${s.replace(/</g,'&lt;')}</div>`; } });
+          outEl.innerHTML = '';
+          await py.runPythonAsync(codeEl.value);
+          // 显示保存的图片
+          const imgData = py.FS.readFile('/tmp/sim_out.png', { encoding: 'base64' });
+          outEl.innerHTML = `<img src="data:image/png;base64,${imgData}" style="max-width:100%;display:block;margin:0 auto">`;
+          statusEl.textContent = '运行完成 ✓';
+          statusEl.style.color = 'var(--success)';
+        } catch (err) {
+          outEl.innerHTML += `<div style="color:var(--danger);font-family:Consolas;font-size:12px;padding:8px">${String(err).replace(/</g,'&lt;')}</div>`;
+          statusEl.textContent = '运行出错，看输出区';
+          statusEl.style.color = 'var(--danger)';
+        } finally {
+          btn.disabled = false;
+        }
+      }
+
+      el.querySelector('#psim-run').addEventListener('click', runCode);
+      el.querySelector('#psim-reset').addEventListener('click', () => { codeEl.value = DEFAULT_CODE; });
+    },
   },
 };
