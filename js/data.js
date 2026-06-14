@@ -2403,6 +2403,46 @@ title(<span class="code-string">'正弦波'</span>); grid on;
 <span class="code-end">end</span></div>
           <div class="info-box warning"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg><div><strong>最大坑：Matlab索引从1开始</strong>，不是C/Python的从0！<code>v(1)</code>是第一个元素。<strong>注释用 %</strong>（不是 //）。<strong>语句结尾分号 ; 表示"执行但不显示"，无分号会打印结果</strong>。</div></div>
 
+          <h4 class="font-medium mt-4 mb-2">矩阵/数组进阶操作（电机仿真天天用）</h4>
+          <div class="code-block"><span class="code-comment">%% 矩阵操作基础</span>
+A = [<span class="code-number">1</span> <span class="code-number">2</span> <span class="code-number">3</span>; <span class="code-number">4</span> <span class="code-number">5</span> <span class="code-number">6</span>];   <span class="code-comment">% 2x3矩阵</span>
+A(2,3)        <span class="code-comment">% 取第2行第3列 = 6</span>
+A(1, :)       <span class="code-comment">% 第1行全部列 = [1 2 3]（冒号=全部）</span>
+A'            <span class="code-comment">% 转置（行变列）</span>
+size(A)       <span class="code-comment">% 返回[行数 列数]</span>
+
+<span class="code-comment">% 点乘 .* vs 矩阵乘 *（新手最易混淆）</span>
+a = [<span class="code-number">1</span> <span class="code-number">2</span>]; b = [<span class="code-number">3</span> <span class="code-number">4</span>];
+a .* b        <span class="code-comment">% 逐元素乘 = [3 8]</span>
+a * b'        <span class="code-comment">% 矩阵乘 = 11（内积）</span>
+<span class="code-comment">% 常用：sum(v) mean(v) max(v) min(v)</span></div>
+          <div class="info-box info"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>记住</strong>：前面加点(<code>.* ./ .^</code>)是逐元素运算；<strong>不点</strong>是矩阵运算。画波形基本都用点乘。</div></div>
+
+          <h4 class="font-medium mt-4 mb-2">画图进阶（一图画多条曲线）</h4>
+          <div class="code-block"><span class="code-comment">%% hold on画多条、subplot子图、样式与保存</span>
+t = <span class="code-number">0</span>:<span class="code-number">0.01</span>:<span class="code-number">2</span>*pi;
+figure; hold on;
+plot(t, sin(t), <span class="code-string">'b-'</span>, <span class="code-string">'LineWidth'</span>,<span class="code-number">2</span>);
+plot(t, cos(t), <span class="code-string">'r--'</span>, <span class="code-string">'LineWidth'</span>,<span class="code-number">2</span>);
+legend(<span class="code-string">'sin'</span>,<span class="code-string">'cos'</span>); grid on; hold off;
+
+subplot(<span class="code-number">2</span>,<span class="code-number">1</span>,<span class="code-number">1</span>); plot(t,sin(t)); title(<span class="code-string">'上半'</span>);
+subplot(<span class="code-number">2</span>,<span class="code-number">1</span>,<span class="code-number">2</span>); plot(t,cos(t)); title(<span class="code-string">'下半'</span>);
+
+<span class="code-comment">% 样式速查：b蓝r红g绿 | -实线--虚线 | .o*x</span>
+saveas(gcf, <span class="code-string">'result.png'</span>);  <span class="code-comment">% 保存图片</span></div>
+
+          <h4 class="font-medium mt-4 mb-2">脚本(.m) vs 函数(.m) vs 调试技巧</h4>
+          <div class="overflow-x-auto mb-3"><table class="compare-table">
+            <thead><tr><th>特性</th><th>脚本</th><th>函数</th></tr></thead>
+            <tbody>
+              <tr><td class="font-medium">开头</td><td>直接命令</td><td><code>function ... end</code></td></tr>
+              <tr><td class="font-medium">变量</td><td>共享工作区</td><td>独立(参数进、返回值出)</td></tr>
+              <tr><td class="font-medium">用途</td><td>一次性仿真</td><td>可复用的模块</td></tr>
+            </tbody>
+          </table></div>
+          <div class="info-box tip"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>调试三招</strong>：① 编辑器点行号左侧设断点，F10逐行；② <code>disp(x)</code> 或去掉分号看变量值；③ 右侧工作区面板双击看矩阵内容。常见错误：索引越界、矩阵维度不匹配、中文标点。</div></div>
+
           <h3 class="text-lg font-semibold mb-3 mt-6">三、控制仿真三板斧：tf、step、feedback</h3>
           <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
             电机控制仿真90%的工作用这三个函数完成。记住它们，就能做大部分仿真：
@@ -2457,7 +2497,50 @@ grid on; hold off;
 <span class="code-comment">% 结论：Kp=1太慢，Kp=20超调振荡，Kp=5~10平衡最佳</span></div>
           <div class="info-box info"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>这就是科学调参</strong>：仿真里5行代码同时画5条曲线，<strong>哪个Kp上升快、哪个超调大、哪个振荡一目了然</strong>。选定后移植到MCU，比在硬件上一次次试快100倍。</div></div>
 
-          <h3 class="text-lg font-semibold mb-3 mt-6">六、Simulink：拖拽搭框图（复杂系统利器）</h3>
+          <h3 class="text-lg font-semibold mb-3 mt-6">六、频域分析：bode 图看系统稳定性</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            阶跃响应只看到"时间域"的表现。<strong>bode 图</strong>从频率角度分析：在哪些频率下系统稳定、哪些频率会振荡或失稳。工程上通过<strong>相位裕度(PM)&gt;45°和增益裕度(GM)&gt;6dB</strong>判断稳定性。
+          </p>
+          <div class="code-block"><span class="code-comment">%% 电机+PI控制器的频域分析</span>
+G = tf(num_G, den_G);               <span class="code-comment">% 电机开环</span>
+C = Kp + Ki/s;                       <span class="code-comment">% PI控制器</span>
+L = C * G;                           <span class="code-comment">% 开环传函</span>
+
+figure;
+subplot(<span class="code-number">2</span>,<span class="code-number">1</span>,<span class="code-number">1</span>); bode(L); grid on;          <span class="code-comment">% 幅频+相频</span>
+subplot(<span class="code-number">2</span>,<span class="code-number">1</span>,<span class="code-number">2</span>); nyquist(L); grid on;        <span class="code-comment">% Nyquist图</span>
+
+<span class="code-comment">% 数值方式读稳定裕度</span>
+[Gm, Pm, Wcg, Wcp] = margin(L);     <span class="code-comment">% Gm=增益裕度(dB), Pm=相位裕度(°)</span>
+disp([<span class="code-string">'相位裕度='</span> num2str(Pm) <span class="code-string">'°  增益裕度='</span> num2str(Gm) <span class="code-string">'dB'</span>]);</div>
+          <div class="info-box tip"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>怎么读bode图</strong>：相位裕度越小→越接近振荡（一般为正数，&lt;30°危险）；增益裕度越小→越接近不稳（&gt;3dB算安全）。加大Kp通常降低相位裕度（更快但更易振荡），加大Kd提升相位裕度（增强阻尼）。</div></div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">七、PID Tuner：Matlab自动调参（不用手算）</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            Matlab Control System Toolbox 内置了<strong>自动PID调参工具</strong>。给定传函和性能需求（快/稳），它自动算出最优Kp/Ki/Kd——比手工试快得多，且更科学：
+          </p>
+          <div class="code-block"><span class="code-comment">%% pidtune 自动调参（先建传函，一句搞定）</span>
+G = tf(num_G, den_G);                    <span class="code-comment">% 被控对象传函</span>
+C = pidtune(G, <span class="code-string">'PI'</span>);                      <span class="code-comment">% 自动调PI参数！</span>
+
+<span class="code-comment">% 看结果</span>
+C              <span class="code-comment">% 命令窗口打印 Kp=? Ki=?  </span>
+step(feedback(C*G,<span class="code-number">1</span>)); grid on;  <span class="code-comment">% 画闭环阶跃响应验证</span>
+<span class="code-comment">% 也可指定目标带宽(rad/s)：C = pidtune(G,'PI',100);</span></div>
+          <div class="info-box info"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div>也可用<strong>图形界面版 pidTuner</strong>：命令窗口输 <code>pidTuner(G,'PI')</code> 打开交互窗口，<strong>拖动滑块实时看阶跃响应</strong>——Kp偏左变慢、偏右变快振，直观到不想手调。</div></div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">八、从Simulink自动生成C代码（MBD工作流）</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            这是工业界"基于模型设计(MBD)"的核心：在 Simulink 里仿好控制算法后，<strong>一行代码都不用手写</strong>——用 Embedded Coder 直接生成可部署到 MCU 的 C 代码：
+          </p>
+          <div class="step-list">
+            <div class="step-item"><div><strong>Step1</strong>：在 Simulink 搭好控制框图（PID+SVPWM+电机模型），仿真验证通过。</div></div>
+            <div class="step-item"><div><strong>Step2</strong>：把"控制器"部分单独包成原子子系统，右键→ C/C++ Code → Build This Subsystem。</div></div>
+            <div class="step-item"><div><strong>Step3</strong>：自动生成干净的 .c/.h 文件，包含完整 PID 算法和数据结构。复制到 STM32 CubeIDE 里直接用。</div></div>
+          </div>
+          <div class="info-box warning"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg><div><strong>需要额外的工具箱</strong>：Embedded Coder + 目标MCU支持包（STM32/TI C2000等）。学生版有折扣。即使不用代码生成功能，<strong>Simulink仿真的PID参数</strong>也可手动抄到MCU代码里——模型帮你"算"，代码帮你"跑"。</div></div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">九、Simulink：拖拽搭框图（复杂系统利器）</h3>
           <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
             对于<strong>多模块系统</strong>（FOC = 坐标变换+PID+SVPWM+电机），用 m 脚本写传函繁琐。Simulink 用<strong>拖拽框图</strong>搭建，像拼积木：
           </p>
@@ -2468,7 +2551,7 @@ grid on; hold off;
           </div>
           <div class="info-box warning"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg><div><strong>仿真≠现实</strong>：仿真模型忽略了非线性(死区、饱和、摩擦静段)，结果偏理想。实测通常比仿真差(超调更大)。所以仿真参数只是<strong>起点</strong>，上硬件后仍需微调。</div></div>
 
-          <h3 class="text-lg font-semibold mb-3 mt-6">七、从仿真到MCU代码：离散化</h3>
+          <h3 class="text-lg font-semibold mb-3 mt-6">十、从仿真到MCU代码：离散化</h3>
           <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
             仿真用连续时间(s域)，MCU是离散时间(每个控制周期采一次)。连续PI <code>C(s)=Kp+Ki/s</code> 离散化：
           </p>
@@ -2478,7 +2561,33 @@ grid on; hold off;
           </div>
           <div class="info-box tip"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>离散化工具</strong>：<code>C_d = c2d(C, Ts, 'tustin')</code> 自动转换。Ts=控制周期(如0.001s)。转完用 <code>dstep(C_d)</code> 看离散响应，确认离散化没引入过大误差。</div></div>
 
-          <h3 class="text-lg font-semibold mb-3 mt-6">八、动手实验：在线Python沙盒</h3>
+          <h3 class="text-lg font-semibold mb-3 mt-6">十一、推荐学习路径与优质资源</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            上面讲了 Matlab 怎么用，下面给出一条<strong>从零到能仿真电机的系统化学习路线</strong>，每阶段配推荐资源：
+          </p>
+          <div class="overflow-x-auto mb-3"><table class="compare-table">
+            <thead><tr><th>阶段</th><th>学习内容</th><th>推荐资源</th></tr></thead>
+            <tbody>
+              <tr><td class="font-medium">① 入门基础</td><td>Matlab界面、变量、矩阵、画图</td><td>MathWorks官方"入门之旅"(免费2h在线课)；福州大学MOOC</td></tr>
+              <tr><td class="font-medium">② 控制理论</td><td>tf/step/feedback/bode、PID</td><td>MathWorks"控制系统设计基础"视频；华东师大PDF教材</td></tr>
+              <tr><td class="font-medium">③ 电机建模</td><td>直流/BLDC传函、Simscape电气模型</td><td>MathWorks"电机建模与仿真"专题；CSDN直流电机仿真教程</td></tr>
+              <tr><td class="font-medium">④ 电机控制</td><td>BLDC/FOC Simulink仿真、参数整定</td><td>B站"FOC矢量控制Simulink仿真"系列；官方加速开发视频</td></tr>
+              <tr><td class="font-medium">⑤ 系统实战</td><td>代码生成、HIL、完整电驱动系统</td><td>TI C2000快速原型课程；MathWorks"基于模型的设计"文档</td></tr>
+            </tbody>
+          </table></div>
+
+          <h4 class="font-medium mt-4 mb-2">必备资源直通车</h4>
+          <ul class="list-disc pl-5 space-y-1 text-gray-600 dark:text-gray-400 text-sm">
+            <li><strong>官方快速入门</strong>（免费2小时在线课）: matlabacademy.mathworks.com → MATLAB Onramp</li>
+            <li><strong>知乎电力电子学习路径</strong>（系统整合文档+视频+示例）: zhuanlan.zhihu.com → 搜"MATLAB 学习路径 电力电子"</li>
+            <li><strong>B站Simulink电机控制视频</strong>（FOC全套仿真，跟着做）: 搜"BV1By4y1V7rF"或"Simulink FOC仿真"</li>
+            <li><strong>福州大学MOOC</strong>（系统课程，从零教你）: icourse163.org → 搜"MATLAB及机电系统仿真"</li>
+            <li><strong>GNU Octave</strong>（免费Matlab替代，控制仿真够用）: octave.org 免费下载</li>
+            <li><strong>File Exchange</strong>（社区共享的电机模型和工具）: mathworks.com/matlabcentral → 搜"motor control"</li>
+          </ul>
+          <div class="info-box tip mt-3"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>学习建议</strong>：不要试图"学完所有内容再动手"。<strong>先看2小时入门课，立刻打开Matlab/Octave跟着敲</strong>——这节课教的变量、矩阵、画图，看完就能跑。然后按上面的5阶段，每阶段只学你当前需要的部分。本节的沙盒也能帮你快速验证代码。</div></div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">十二、动手实验：在线Python沙盒</h3>
           <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-3">
             没装 Matlab/Octave？用下面的<strong>在线沙盒</strong>直接跑控制仿真。它用 Python 的 scipy 控制库（<code>tf</code>、<code>step</code> 语法和 Matlab 几乎一样），改参数点"运行"立即看阶跃响应曲线——验证你刚学的概念。
           </p>
