@@ -2592,7 +2592,7 @@ step(feedback(C*G,<span class="code-number">1</span>)); grid on;  <span class="c
             没装 Matlab/Octave？用下面的<strong>在线沙盒</strong>直接跑控制仿真。它用 Python 的 scipy 控制库（<code>tf</code>、<code>step</code> 语法和 Matlab 几乎一样），改参数点"运行"立即看阶跃响应曲线——验证你刚学的概念。
           </p>
           <div data-chart="python-sim" class="chart-container" style="min-height:480px;padding:8px"></div>
-          <div class="info-box info mt-3"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>沙盒怎么用</strong>：左侧是可编辑的Python代码（默认是PID直流电机仿真）。改 <code>Kp/Ki/Kd</code> 的数字 → 点"▶ 运行" → 右侧画出新的阶跃响应曲线。<strong>试着把 Kp 改成 1、30、100 看曲线变化</strong>，直观感受"Kp大=快但超调，Kp小=慢但稳"。首次加载约10秒（浏览器在后台下载Python运行时）。</div></div>
+          <div class="info-box info mt-3"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>⚠ 语法差异注意</strong>：此沙盒运行 <strong>Python（非Matlab）</strong>。默认代码已是最简Python版，左侧也标注了 Matlab→Python 对照。上面教程的 Matlab 示例不能直接复制！对照表：<code>tf(num,den)</code>→<code>signal.TransferFunction</code>、<code>step(G)</code>→<code>signal.step(G,T=t)</code>、<code>feedback(G,1)</code>→多项式闭环运算。改 <code>Kp/Ki/Kd</code> 的数字 → 点"▶ 运行"看曲线变化。首次加载约10秒。</div></div>
         `,
       },
     ],

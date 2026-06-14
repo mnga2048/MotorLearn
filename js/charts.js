@@ -530,50 +530,59 @@ const Charts = {
 
     // Python 在线仿真沙盒（基于 Pyodide，浏览器内跑 Python+scipy 控制仿真）
     'python-sim'(el) {
-      const DEFAULT_CODE = `# 直流电机 PID 转速控制仿真（Python + scipy控制库）
-# 改 Kp / Ki 后点"运行"，看右侧阶跃响应曲线变化
+      const DEFAULT_CODE = `# ========================================
+# Matlab vs Python 对照（沙盒跑Python）:
+#   tf(num,den)   → signal.TransferFunction(num,den)
+#   step(G)       → signal.step(G, T=t)
+#   feedback(G,1) → 见下方的多项式闭环算法
+#   conv(a,b)     → np.polymul(a,b)
+# ========================================
+
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy import signal
 
-# 电机参数（小型直流电机）
+# 电机参数
 R, L, K, J, b = 1.0, 0.5e-3, 0.01, 0.01, 0.1
 
-# 电机传递函数 G(s) = Kt / (L*J*s^2 + (L*b+R*J)*s + (R*b+Kt^2))
+# 传递函数 G(s)
 num_G = [K]
 den_G = [L*J, L*b + R*J, R*b + K*K]
 
 # === 改这里调参 ===
-Kp, Ki, Kd = 5.0, 10.0, 0.0   # PID 参数
+Kp, Ki, Kd = 5.0, 10.0, 0.0
 # =================
 
-# PID 控制器: C(s) = (Kd*s^2 + Kp*s + Ki) / s
+# PID: C(s)
 num_C = [Kd, Kp, Ki]
 den_C = [1, 0]
 
-# 开环 OL = C * G （多项式乘法）
+# 开环 OL = C * G
 num_OL = np.polymul(num_C, num_G)
 den_OL = np.polymul(den_C, den_G)
 
-# 闭环 T = OL / (1 + OL)
+# 闭环 T = OL/(1+OL)
 num_T = num_OL
 den_T = np.polyadd(den_OL, num_OL)
 T = signal.TransferFunction(num_T, den_T)
 
-# 画阶跃响应
+# 阶跃响应
 t = np.linspace(0, 0.5, 1000)
 t_out, y_out = signal.step(T, T=t)
 
 plt.figure(figsize=(7, 3.5))
 plt.plot(t_out, y_out, 'b-', linewidth=2)
-plt.title(f'PID 转速阶跃响应  (Kp={Kp}, Ki={Ki}, Kd={Kd})')
-plt.xlabel('时间 (s)'); plt.ylabel('转速 (rad/s)')
-plt.grid(True, alpha=0.3)
+plt.axhline(1.0, color='r', linestyle='--', alpha=0.4)
+plt.title(f'Step Response (Kp={Kp}, Ki={Ki}, Kd={Kd})')
+plt.xlabel('Time (s)'); plt.ylabel('Output')
+plt.legend(['Response','Target']); plt.grid(True, alpha=0.3)
 plt.tight_layout()
 plt.savefig('/tmp/sim_out.png', dpi=100)
-print(f"仿真完成：稳态值={y_out[-1]:.3f}, 峰值={max(y_out):.3f}, 超调={(max(y_out)-y_out[-1])/y_out[-1]*100:.1f}%")
-`;
 
+peak = max(y_out); ss = y_out[-1]
+ov = (peak-ss)/ss*100 if ss != 0 else 0
+print(f'Done: steady={ss:.3f} peak={peak:.3f} overshoot={ov:.1f}%')
+print('Try: Kp=1(slow) Kp=10(fast) Kp=50(oscillate)')`;
       el.innerHTML = `
         <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
           <button id="psim-run" style="padding:6px 18px;background:var(--primary);color:#fff;border:none;border-radius:6px;font-size:14px;cursor:pointer;font-weight:600">▶ 运行</button>
