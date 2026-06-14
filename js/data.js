@@ -183,6 +183,26 @@ const MotorData = {
               <div class="text-sm text-gray-500">内置控制电路的位置执行器，RC模型和机器人常用</div>
             </div>
           </div>
+
+          <h4 class="font-medium mt-6 mb-2">选型决策表：该用哪种电机？</h4>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            根据应用场景的关键需求（精度、速度、成本、是否需反馈），对照下表快速选型：
+          </p>
+          <div class="overflow-x-auto"><table class="compare-table">
+            <thead><tr><th>需求场景</th><th>关键指标</th><th>推荐</th><th>理由</th></tr></thead>
+            <tbody>
+              <tr><td class="font-medium">玩具/风扇/简易驱动</td><td>低成本、无需精确定位</td><td>有刷直流</td><td>最便宜，PWM直接调速</td></tr>
+              <tr><td class="font-medium">3D打印机/CNC</td><td>开环精确位置、低成本</td><td>步进电机</td><td>脉冲即位置，无需编码器</td></tr>
+              <tr><td class="font-medium">机器人关节(小型)</td><td>角度控制、简单接口</td><td>舵机</td><td>一根PWM线控角度，内置反馈</td></tr>
+              <tr><td class="font-medium">无人机/云台/电单车</td><td>高效率、高转速、长寿命</td><td>无刷(BLDC)</td><td>效率90%+、无磨损、FOC可精密控</td></tr>
+              <tr><td class="font-medium">工业机械臂/CNC主轴</td><td>高速高精、大扭矩、闭环</td><td>伺服</td><td>编码器闭环，高速不丢步</td></tr>
+              <tr><td class="font-medium">低成本大扭矩定位</td><td>堵转力矩大、定位准</td><td>步进(配减速)</td><td>低速扭矩大，价格远低于伺服</td></tr>
+            </tbody>
+          </table></div>
+          <div class="info-box tip mt-3">
+            <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <div><strong>三条经验法则</strong>：① 精度要求 &lt; 1° 且预算紧 → 步进；精度 &lt; 0.1° 或需高速 → 伺服。② 需要长时间连续高速旋转 → 优先无刷（有刷电刷会磨损）。③ 不确定时，先从<strong>步进+舵机</strong>入门（最简单），再进阶无刷和伺服。</div>
+          </div>
         `,
       },
       {
@@ -220,6 +240,26 @@ const MotorData = {
           <div class="info-box tip">
             <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
             <div><strong>转矩-转速特性</strong>：对于直流电机，转速与转矩近似成反比关系。转矩越大，转速越低。理想空载转速 n₀ = V/(K·Φ)，堵转转矩 T_stall = K·Φ·I。</div>
+          </div>
+
+          <h4 class="font-medium mt-6 mb-2">实操：如何测量这些参数</h4>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            买来的二手电机往往没数据手册，或手册参数不全。下面是常用的<strong>实测方法</strong>，只需要万用表、示波器、电源：
+          </p>
+          <div class="overflow-x-auto"><table class="compare-table">
+            <thead><tr><th>参数</th><th>测量工具</th><th>方法</th></tr></thead>
+            <tbody>
+              <tr><td class="font-medium">相电阻 R</td><td>万用表(电阻档)</td><td>测电机两相端电阻。多次旋转转子取平均（消除换向器接触差异）</td></tr>
+              <tr><td class="font-medium">空载转速</td><td>示波器+霍尔，或转速计</td><td>加额定电压空载，测霍尔信号频率 → n = 60×f/(极对数×换向模式)</td></tr>
+              <tr><td class="font-medium">KV值(无刷)</td><td>电源+转速计</td><td>空载下测转速 n，KV = n / V。例：10V下12000RPM → KV=1200</td></tr>
+              <tr><td class="font-medium">堵转电流</td><td>电源(限流)+电流表</td><td>卡死转子，缓慢升压到额定电流，读数。注意每次&lt;3秒防烧毁</td></tr>
+              <tr><td class="font-medium">反电动势常数 Ke</td><td>示波器+示波器探头</td><td>用手匀速转动电机，测两相开路电压峰值，除以转速(RPM)</td></tr>
+              <tr><td class="font-medium">转矩常数 Kt</td><td>计算</td><td>Kt ≈ 9.55 × Ke（国际单位下两者数值相等，单位不同）</td></tr>
+            </tbody>
+          </table></div>
+          <div class="info-box warning mt-3">
+            <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+            <div><strong>堵转测量的风险</strong>：堵转时电机无反电动势抵消，电流 = V/R，可达额定电流的 5~20 倍。必须用<strong>限流电源</strong>（设上限为额定电流），且每次测试不超过 3 秒，否则烧绕组。有刷电机堵转还会烧电刷。</div>
           </div>
         `,
       },
@@ -274,6 +314,45 @@ const MotorData = {
           <div class="info-box info">
             <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
             <div><strong>PWM频率选择</strong>：一般建议PWM频率在 10kHz~20kHz 以上（人耳听觉范围之外），避免电机发出刺耳噪音。常用频率：Arduino约490Hz/980Hz（可调），STM32可配置到数十kHz。</div>
+          </div>
+
+          <h4 class="font-medium mt-6 mb-2">实战：STM32 HAL 配置 PWM 驱动电机</h4>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            以 STM32 + L298N 驱动有刷直流电机为例。关键计算：<strong>PWM 频率 = 定时器时钟 / ((PSC+1) × (ARR+1))</strong>。
+          </p>
+          <div class="code-block"><span class="code-comment">/* 目标：在 PA8 (TIM1_CH1) 输出 20kHz PWM 控制电机转速
+ * STM32F103 主频 72MHz
+ * 选 PSC=0, ARR=3599 → 72MHz/3600 = 20kHz ✓
+ * CCR 决定占空比：CCR=1800 → 50%；CCR=3600 → 100% */</span>
+
+<span class="code-comment">// 1. CubeMX 配置：TIM1 → CH1 设为 PWM Generation CH1
+//    PSC=0, ARR=3599, Pulse(初始 CCR)=0 */</span>
+
+TIM_HandleTypeDef htim1;
+
+<span class="code-keyword">void</span> <span class="code-func">Motor_PWM_Init</span>(<span class="code-keyword">void</span>) {
+  <span class="code-comment">// 启动PWM输出（HAL已自动配置GPIO复用）*/</span>
+  HAL_TIM_PWM_Start(&amp;htim1, TIM_CHANNEL_1);
+}
+
+<span class="code-comment">/**
+ * 设置电机转速（占空比 0~1000 映射到 CCR 0~ARR）
+ * @param speed 0=停, 1000=全速, 负值由方向引脚单独处理
+ */</span>
+<span class="code-keyword">void</span> <span class="code-func">Motor_SetSpeed</span>(<span class="code-keyword">int16_t</span> speed) {
+  <span class="code-keyword">if</span> (speed &lt; <span class="code-number">0</span>) speed = <span class="code-number">0</span>;
+  <span class="code-keyword">if</span> (speed &gt; <span class="code-number">1000</span>) speed = <span class="code-number">1000</span>;
+  <span class="code-comment">// speed(0~1000) → CCR(0~3599)</span>
+  <span class="code-keyword">uint32_t</span> ccr = (<span class="code-keyword">uint32_t</span>)speed * <span class="code-number">3599</span> / <span class="code-number">1000</span>;
+  __HAL_TIM_SET_COMPARE(&amp;htim1, TIM_CHANNEL_1, ccr);
+}
+
+<span class="code-comment">/* 使用：让电机以 60% 速度运转 */</span>
+<span class="code-func">Motor_PWM_Init</span>();
+<span class="code-func">Motor_SetSpeed</span>(<span class="code-number">600</span>);   <span class="code-comment">// 60% 占空比 */</span></div>
+          <div class="info-box tip mt-3">
+            <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <div><strong>调试技巧</strong>：先用万用表测电机两端电压——50%占空比时应该约等于电源电压的一半。如果不对，检查 PWM 引脚复用配置、L298N 使能脚(ENA)、共地。STM32 用 <code>__HAL_TIM_SET_COMPARE</code> 改占空比是零开销的（直接写寄存器），可在中断里高频调用。</div>
           </div>
         `,
       },
@@ -1874,12 +1953,64 @@ const MotorData = {
   analogWrite(ENA, 128);
   delay(2000);
 
-  <span class="code-comment">// 反转，50%占空比</span>
+          <span class="code-comment">// 反转，50%占空比</span>
   digitalWrite(IN1, LOW);
   digitalWrite(IN2, HIGH);
   analogWrite(ENA, 128);
   delay(2000);
 }</div>
+        `},
+        { title: '实战：STM32 HAL 完整驱动', content: `
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            工业级实现需要：方向控制(GPIO) + 调速(PWM) + 过流保护(ADC)。下面是基于 H桥驱动芯片(如 TB6612)的完整框架：
+          </p>
+          <div class="code-block"><span class="code-comment">/* STM32 + TB6612 有刷直流电机完整驱动
+ * 接线：PWMA=TIM2_CH1, AIN1=PB0, AIN2=PB1, STBY=PB2(高电平使能)
+ *      电流采样：ACS712 输出接 ADC1_CH3，过流阈值对应 1.5A */</span>
+
+<span class="code-keyword">#define</span> MOTOR_PWM_MAX  <span class="code-number">3599</span>     <span class="code-comment">// ARR值，对应100%占空比</span>
+<span class="code-keyword">#define</span> CURRENT_LIMIT_ADC  <span class="code-number">2480</span>   <span class="code-comment">// ACS712在1.5A时的ADC读数(需校准)</span>
+
+<span class="code-keyword">typedef enum</span> { DIR_STOP, DIR_FWD, DIR_REV } MotorDir;
+
+<span class="code-comment">/* 设置方向：AIN1/AIN2 控制H桥导通组合 */</span>
+<span class="code-keyword">static void</span> <span class="code-func">Motor_SetDir</span>(MotorDir dir) {
+  <span class="code-keyword">switch</span> (dir) {
+    <span class="code-keyword">case</span> DIR_FWD:  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_SET);
+                  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_RESET); <span class="code-keyword">break</span>;
+    <span class="code-keyword">case</span> DIR_REV:  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_RESET);
+                  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_SET);   <span class="code-keyword">break</span>;
+    <span class="code-keyword">default</span>:       HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_RESET);
+                  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_RESET); <span class="code-comment">// 滑行</span>
+  }
+}
+
+<span class="code-comment">/**
+ * 设置电机运转：方向 + 速度
+ * @param dir   方向(DIR_STOP/FWD/REV)
+ * @param speed 0~1000，映射到占空比 0~100%
+ */</span>
+<span class="code-keyword">void</span> <span class="code-func">Motor_Run</span>(MotorDir dir, <span class="code-keyword">uint16_t</span> speed) {
+  <span class="code-keyword">if</span> (speed &gt; <span class="code-number">1000</span>) speed = <span class="code-number">1000</span>;
+  <span class="code-func">Motor_SetDir</span>(dir);
+  <span class="code-keyword">uint32_t</span> ccr = (<span class="code-keyword">uint32_t</span>)speed * MOTOR_PWM_MAX / <span class="code-number">1000</span>;
+  __HAL_TIM_SET_COMPARE(&amp;htim2, TIM_CHANNEL_1, ccr);
+}
+
+<span class="code-comment">/* 过流保护：在ADC采样完成中断里检查
+ * 超过阈值立即停机，防止堵转烧绕组 */</span>
+<span class="code-keyword">void</span> <span class="code-func">HAL_ADC_ConvCpltCallback</span>(ADC_HandleTypeDef *hadc) {
+  <span class="code-keyword">uint16_t</span> cur = HAL_ADC_GetValue(hadc);
+  <span class="code-keyword">if</span> (cur &gt; CURRENT_LIMIT_ADC) {
+    <span class="code-func">Motor_Run</span>(DIR_STOP, <span class="code-number">0</span>);     <span class="code-comment">// 立即停机</span>
+    g_overcurrent_flag = <span class="code-number">1</span>;       <span class="code-comment">// 置故障标志</span>
+  }
+}
+
+<span class="code-comment">/* 使用：正转60%速度 */</span>
+HAL_TIM_PWM_Start(&amp;htim2, TIM_CHANNEL_1);
+<span class="code-func">Motor_Run</span>(DIR_FWD, <span class="code-number">600</span>);</div>
+          <div class="info-box tip mt-3"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>过流保护是必备</strong>：有刷电机堵转电流可达额定的5-10倍，没有保护几秒就烧。最简单的是<strong>保险丝</strong>(硬件)，进阶用<strong>ACS712/INA240 电流采样 + ADC DMA + 软件比较</strong>(如上代码)。MCU检测到过流后必须在 ms 级切断PWM。</div></div>
         `},
       ],
     },
@@ -1935,6 +2066,42 @@ const MotorData = {
           <ul class="list-disc pl-5 space-y-1 text-gray-600 dark:text-gray-400">
             <li>无人机电机</li><li>电动自行车、电动滑板</li><li>云台稳定器</li><li>电动工具（电钻、角磨机）</li><li>硬盘主轴电机</li><li>工业风扇、水泵</li>
           </ul>
+        `},
+        { title: '星形(Y)与三角形(△)接法', content: `
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-3">
+            BLDC 三相绕组有两种连接方式，直接影响<strong>电压/电流特性和扭矩转速曲线</strong>。选哪种取决于应用：
+          </p>
+          <div class="overflow-x-auto mb-3"><table class="compare-table">
+            <thead><tr><th>特性</th><th>星形 Y (Wye)</th><th>三角形 △ (Delta)</th></tr></thead>
+            <tbody>
+              <tr><td class="font-medium">接线</td><td>三端接一起，另三端引出</td><td>首尾相接成环，三个节点引出</td></tr>
+              <tr><td class="font-medium">相电压</td><td>= 线电压 / √3（每相承压低）</td><td>= 线电压（每相承压高）</td></tr>
+              <tr><td class="font-medium">相电流</td><td>= 线电流（每相承流大）</td><td>= 线电流 / √3</td></tr>
+              <tr><td class="font-medium">低速扭矩</td><td>较高（适合启动/负载）</td><td>较低</td></tr>
+              <tr><td class="font-medium">高速性能</td><td>一般</td><td>较好（适合高转速）</td></tr>
+              <tr><td class="font-medium">典型应用</td><td>无人机、云台、多极对数电机</td><td>电动工具、硬盘主轴(高速)</td></tr>
+            </tbody>
+          </table></div>
+          <div class="info-box tip"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>选型口诀</strong>：要低速大扭矩(机器人、云台)选<strong>星形</strong>；要高转速(无人机KV很高那种、电钻)选<strong>三角形</strong>。多数 DIY 用 BLDC 内部已固定接好，无法改接，购买时注意规格书的标注。</div></div>
+        `},
+        { title: 'KV值、极对数与转速的关系', content: `
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-3">
+            KV 和极对数是 BLDC 选型的两个关键参数，它们决定了电机的<strong>速度-扭矩特性</strong>：
+          </p>
+          <div class="formula-block">
+            $n = \\frac{60 \\times f}{p}$
+            <div class="text-sm text-gray-500 mt-2">n: 机械转速(RPM) | f: 电频率(换向频率) | p: 极对数</div>
+          </div>
+          <div class="overflow-x-auto mb-3"><table class="compare-table">
+            <thead><tr><th>KV值</th><th>极对数(典型)</th><th>特点</th><th>典型应用</th></tr></thead>
+            <tbody>
+              <tr><td class="font-medium">超高 KV (3000+)</td><td>2-7对</td><td>高转速低扭矩</td><td>无人机竞速、涵道</td></tr>
+              <tr><td class="font-medium">高 KV (1000-3000)</td><td>5-10对</td><td>中速中扭矩</td><td>穿越机、电踏板</td></tr>
+              <tr><td class="font-medium">低 KV (100-1000)</td><td>7-14对</td><td>低转速高扭矩</td><td>云台、机械臂、e-bike</td></tr>
+              <tr><td class="font-medium">极低 KV (&lt;100)</td><td>14+对</td><td>大扭矩直驱</td><td>直驱舵机、机器人关节</td></tr>
+            </tbody>
+          </table></div>
+          <div class="info-box info"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>换向频率别忘了除以极对数</strong>：极对数越多，同样机械转速下所需的电换向频率越高。例如 14 极对(7对)电机跑 1000RPM，换向频率 = 1000×7/60 ≈ 117Hz，MCU 中断和 PWM 必须跟得上。极对数也影响 <strong>FOC 的电角度 = 机械角度 × 极对数</strong>。</div></div>
         `},
       ],
     },
@@ -2315,6 +2482,42 @@ GND  --> GND     (STM32与A4988必须共地!)</div>
           <ul class="list-disc pl-5 space-y-1 text-gray-600 dark:text-gray-400">
             <li>工业机器人关节</li><li>CNC机床进给轴</li><li>自动化产线传送、抓取</li><li>半导体制造设备</li><li>包装、印刷机械</li>
           </ul>
+        `},
+        { title: '伺服 vs 步进：怎么选？', content: `
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-3">
+            这是新手最常见的纠结。核心区别：伺服是<strong>闭环</strong>（有反馈，不丢步），步进通常<strong>开环</strong>（发脉冲即假设走到位）。下表帮你决策：
+          </p>
+          <div class="overflow-x-auto mb-3"><table class="compare-table">
+            <thead><tr><th>对比项</th><th>步进电机</th><th>伺服电机</th></tr></thead>
+            <tbody>
+              <tr><td class="font-medium">控制方式</td><td>开环(脉冲即位置)</td><td>闭环(编码器反馈)</td></tr>
+              <tr><td class="font-medium">高速性能</td><td>差(高速丢步)</td><td>好(额定扭矩保持)</td></tr>
+              <tr><td class="font-medium">低速扭矩</td><td><strong>大</strong>(堵转扭矩大)</td><td>中</td></tr>
+              <tr><td class="font-medium">精度</td><td>步距角决定(典型1.8°)</td><td>编码器决定(典型0.01°)</td></tr>
+              <tr><td class="font-medium">过载能力</td><td>弱(过载即丢步)</td><td><strong>强</strong>(3倍过载数秒)</td></tr>
+              <tr><td class="font-medium">响应速度</td><td>慢(加减速曲线限制)</td><td><strong>快</strong>(ms级)</td></tr>
+              <tr><td class="font-medium">价格</td><td><strong>低</strong>(NEMA17约¥50)</td><td>高(750W约¥1500+)</td></tr>
+              <tr><td class="font-medium">发热</td><td>大(静止也满电流)</td><td>小(静止零电流)</td></tr>
+            </tbody>
+          </table></div>
+          <div class="info-box tip"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>决策三问</strong>：① 预算 &lt; ¥500/轴？→ 步进。② 需要高速(&gt;2000RPM)或高精度(&lt;0.1°)？→ 伺服。③ 低速大扭矩且不差钱？→ 伺服(或步进配减速机)。DIY机械臂优先步进+闭环模块(如TMC5160带编码器)，性价比最高。</div></div>
+        `},
+        { title: '驱动器接线实例（脉冲方向）', content: `
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            国产伺服(汇川/台达/松下)最通用的接口。MCU 用定时器发脉冲、GPIO 控方向：
+          </p>
+          <div class="overflow-x-auto mb-3"><table class="compare-table">
+            <thead><tr><th>MCU 端</th><th>驱动器端子</th><th>信号</th><th>说明</th></tr></thead>
+            <tbody>
+              <tr><td class="font-medium">TIM CH1 (脉冲)</td><td>PUL+ / PUL-</td><td>PULSE</td><td>每个脉冲走一个最小位移(由电子齿轮比定)</td></tr>
+              <tr><td class="font-medium">GPIO (方向)</td><td>DIR+ / DIR-</td><td>DIR</td><td>高/低电平决定正反转</td></tr>
+              <tr><td class="font-medium">GPIO (使能)</td><td>ENA+ / ENA-</td><td>ENABLE</td><td>低电平使能(伺服上电后需拉低才能动)</td></tr>
+              <tr><td class="font-medium">GPIO 输入</td><td>ALM+</td><td>ALARM</td><td>驱动器故障输出，触发即停MCU</td></tr>
+              <tr><td class="font-medium">GND</td><td>各-端共地</td><td>GND</td><td>必须共地，否则信号错乱</td></tr>
+            </tbody>
+          </table></div>
+          <div class="info-box warning"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg><div><strong>差分信号是关键</strong>：脉冲/方向信号线在干扰大的工业环境必须用<strong>双绞屏蔽差分</strong>(PUL+/PUL-一对)，单端信号超过1米就容易丢脉冲。MCU端用SN65HVD3082或MAX485转差分，或直接用带差分输出的驱动器型号。共地也常被新手忽略，导致电机乱跑。</div></div>
+          <div class="info-box tip mt-3"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>首次上电流程</strong>：① 接线核对三遍(尤其电源相序)。② 驱动器设电子齿轮比(让脉冲数与编码器分辨率匹配)。③ <strong>先空载</strong>测试：低速发少量脉冲，看电机转向是否正确。④ 再带负载调位置环增益。跳步直接带载上电是烧驱动器的常见原因。</div></div>
         `},
       ],
     },
