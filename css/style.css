@@ -134,6 +134,13 @@
 .code-block .code-string { color: #34d399; }
 .code-block .code-func { color: #60a5fa; }
 
+/* ====== SVG 原理图 ====== */
+.svg-figure {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: 0.5rem;
+  padding: 1rem; margin: 1rem 0; overflow-x: auto;
+}
+.svg-figure svg { display: block; max-width: 100%; height: auto; }
+
 /* ====== 复制按钮 ====== */
 .copy-btn {
   position: absolute; top: 0.5rem; right: 0.5rem; padding: 0.3rem 0.5rem;

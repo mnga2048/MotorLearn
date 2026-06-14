@@ -147,6 +147,8 @@
           if (progressEl) Charts.renderProgressChart('progress-chart');
           Calculator.render('calculators-container');
         }
+        // 波形图：扫描详情页内所有 [data-chart] 元素自动渲染
+        Charts.renderAll('page-container');
         // 首页计数动画
         if (pageId === 'home') animateCounters();
       });
