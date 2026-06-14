@@ -64,8 +64,8 @@ const MotorData = {
 
   // ========== 首页数据 ==========
   home: {
-    title: '电机知识学习平台',
-    subtitle: '面向自动化专业学生的系统化电机控制学习指南，从入门到进阶，一站式掌握电机知识',
+    title: '电机知识学习平台（制作完善中）',
+    subtitle: '面向小白的系统化电机控制学习指南，从入门到进阶，目标是一站式掌握电机知识 owo',
     stats: [
       { label: '知识章节', value: '30+', color: 'blue' },
       { label: '电机类型', value: '5', color: 'green' },
@@ -345,11 +345,14 @@ const MotorData = {
   <span class="code-keyword">float</span> Kd;           <span class="code-comment">// 微分系数</span>
   <span class="code-keyword">float</span> out_min;      <span class="code-comment">// 输出下限（如 PWM 占空比 0）</span>
   <span class="code-keyword">float</span> out_max;      <span class="code-comment">// 输出上限（如 PWM 占空比 1000）</span>
+  <span class="code-keyword">float</span> alpha;        <span class="code-comment">// 微分低通滤波系数（0~1，越小越平滑），用于滤波版</span>
 
   <span class="code-comment">/* 运行状态（每次更新会变化）*/</span>
   <span class="code-keyword">float</span> integral;     <span class="code-comment">// 积分累积量</span>
-  <span class="code-keyword">float</span> last_error;   <span class="code-comment">// 上一次误差（用于微分）*/</span>
-  <span class="code-keyword">float</span> last_meas;    <span class="code-comment">// 上一次测量值（用于微分测量法）*/</span>
+  <span class="code-keyword">float</span> last_error;   <span class="code-comment">// 上一次误差（位置式/增量式微分用）</span>
+  <span class="code-keyword">float</span> prev_error;   <span class="code-comment">// 上上次误差（增量式专用）</span>
+  <span class="code-keyword">float</span> last_meas;    <span class="code-comment">// 上一次测量值（测量微分法用）</span>
+  <span class="code-keyword">float</span> d_filter_out; <span class="code-comment">// 微分项滤波输出（滤波版专用）</span>
 } PID_t;
 
 <span class="code-comment">/* 初始化：清零状态，设置参数和限幅 */</span>
@@ -415,7 +418,7 @@ const MotorData = {
   <span class="code-keyword">float</span> delta = pid->Kp * (error - pid->last_error)
                 + pid->Ki * error
                 + pid->Kd * (error - <span class="code-number">2</span>*pid->last_error + pid->prev_error);
-  <span class="code-comment">// 注意：这里需要第三个历史误差 prev_error，结构体里要加一个字段</span>
+  <span class="code-comment">// 用到 prev_error（上上次误差），已在 PID_t 中定义</span>
   pid->prev_error  = pid->last_error;
   pid->last_error  = error;
   <span class="code-keyword">return</span> delta;   <span class="code-comment">// 调用方：output += delta; 再对 output 限幅</span>
@@ -473,7 +476,7 @@ const MotorData = {
           <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
             微分项对高频噪声极度敏感（ADC毛刺会被放大成控制输出的剧烈跳变）。两个工程技巧：<strong>测量微分法</strong>（对测量值微分而非误差，避免设定值突变冲击）+ <strong>一阶低通滤波</strong>。
           </p>
-          <div class="code-block"><span class="code-comment">/* 结构体增加字段：float d_filter_out; float alpha; */</span>
+          <div class="code-block"><span class="code-comment">/* 用到 PID_t 的 alpha、d_filter_out、last_meas 字段 */</span>
 
 <span class="code-keyword">float</span> <span class="code-func">PID_Update_Filtered</span>(PID_t *pid, <span class="code-keyword">float</span> sp, <span class="code-keyword">float</span> meas) {
   <span class="code-keyword">float</span> error = sp - meas;
@@ -873,23 +876,26 @@ const MotorData = {
           <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
             把霍尔状态 → 三相桥臂开关状态的映射做成<strong>查找表</strong>，换向就是查一次表+改定时器输出。三相桥每相由上桥（H）和下桥（L）两个 MOS 管组成，"ON"=导通、"OFF"=关断、"PWM"=脉宽调制（调速）。
           </p>
-          <div class="code-block"><span class="code-comment">/* 每相桥臂的三种状态：OFF（悬空）、PWM_H（上桥PWM下桥关）、PWM_L（下桥PWM上桥关）
- * 用 2bit 表示： 00=OFF, 01=下桥PWM, 10=上桥PWM */</span>
+          <div class="code-block"><span class="code-comment">/* 每相桥臂的三种状态：
+ *   PHASE_HIGH = 上桥臂 PWM（电流流入该相，"入口"）
+ *   PHASE_LOW  = 下桥臂常通（电流流出该相，"出口"）
+ *   PHASE_OFF  = 上下都关（该相悬空，不参与本区间） */</span>
 <span class="code-keyword">typedef enum</span> { PHASE_OFF = <span class="code-number">0</span>, PHASE_LOW = <span class="code-number">1</span>, PHASE_HIGH = <span class="code-number">2</span> } PhaseState;
 
 <span class="code-comment">/* 换向表：8种霍尔状态 → {A相, B相, C相} 的桥臂状态
  * 索引 0~7 对应 HaHbHc 的 0bABC 值
- * 索引 0(000) 和 7(111) 是非法状态，全 OFF */</span>
+ * 注释里的 "入口→出口" 描述电流方向，HIGH=入口、LOW=出口
+ * ⚠ 此表为典型示例，不同电机相序/霍尔安装可能不同，调试时需用示波器确认 */</span>
 <span class="code-keyword">static const</span> PhaseState COMMUTATION_TABLE[<span class="code-number">8</span>][<span class="code-number">3</span>] = {
-  <span class="code-comment">/*  Ha Hb Hc    A        B        C     */</span>
-  { PHASE_OFF, PHASE_OFF, PHASE_OFF }, <span class="code-comment">// 000 非法</span>
-  { PHASE_LOW,  PHASE_HIGH, PHASE_OFF }, <span class="code-comment">// 001 C→B</span>
-  { PHASE_HIGH, PHASE_LOW,  PHASE_OFF }, <span class="code-comment">// 010 B→A</span>
-  { PHASE_OFF,  PHASE_LOW,  PHASE_HIGH}, <span class="code-comment">// 011 B→C... 调试时按实际修正</span>
-  { PHASE_LOW,  PHASE_OFF, PHASE_HIGH }, <span class="code-comment">// 100 A→C</span>
-  { PHASE_HIGH, PHASE_OFF, PHASE_LOW  }, <span class="code-comment">// 101 A→B</span>
-  { PHASE_OFF,  PHASE_HIGH, PHASE_LOW }, <span class="code-comment">// 110 C→A</span>
-  { PHASE_OFF, PHASE_OFF, PHASE_OFF }, <span class="code-comment">// 111 非法</span>
+  <span class="code-comment">/*  Ha Hb Hc     A           B           C          电流方向 */</span>
+  { PHASE_OFF,  PHASE_OFF,  PHASE_OFF  }, <span class="code-comment">// 000 非法</span>
+  { PHASE_OFF,  PHASE_HIGH, PHASE_LOW  }, <span class="code-comment">// 001 入口B→出口C</span>
+  { PHASE_HIGH, PHASE_OFF,  PHASE_LOW  }, <span class="code-comment">// 010 入口A→出口C</span>
+  { PHASE_HIGH, PHASE_LOW,  PHASE_OFF  }, <span class="code-comment">// 011 入口A→出口B</span>
+  { PHASE_LOW,  PHASE_OFF,  PHASE_HIGH }, <span class="code-comment">// 100 入口C→出口A</span>
+  { PHASE_LOW,  PHASE_HIGH, PHASE_OFF  }, <span class="code-comment">// 101 入口B→出口A</span>
+  { PHASE_OFF,  PHASE_LOW,  PHASE_HIGH }, <span class="code-comment">// 110 入口C→出口B</span>
+  { PHASE_OFF,  PHASE_OFF,  PHASE_OFF  }, <span class="code-comment">// 111 非法</span>
 };
 
 <span class="code-comment">/**
@@ -928,15 +934,16 @@ const MotorData = {
           <div class="code-block"><span class="code-comment">/* STM32 高级定时器（TIM1/TIM8）支持硬件互补PWM + 死区
  * 配置一次即可，硬件自动插入死区，无需软件干预 */</span>
 
-<span class="code-comment">// 关键寄存器：TIM1->BDTR（刹车和死区控制寄存器）</span>
-<span class="code-comment">// DTG[7:0] 位编码死区时间，举例（72MHz主频下）：
-//   DTG=0x80 → 死区约 1.78us  （中等功率MOS，典型值）
-//   DTG=0xA0 → 死区约 3.55us  （大功率/慢速MOS，更保守）
-//   DTG=0x40 → 死区约 0.44us  （小功率/快速MOS）*/</span>
+<span class="code-comment">// 关键寄存器：TIM1-&gt;BDTR（刹车和死区控制寄存器）</span>
+<span class="code-comment">// DTG[7:0] 位编码死区时间，举例（72MHz主频，tDTS=13.89ns）：</span>
+<span class="code-comment">//   DTG=0x40 → 约 0.89us  （小功率/快速MOS，DTG[7:5]=01x段）</span>
+<span class="code-comment">//   DTG=0x80 → 约 3.56us  （中等功率MOS，DTG[7:5]=10x段，典型值）</span>
+<span class="code-comment">//   DTG=0xA0 → 约 4.45us  （大功率/慢速MOS，更保守）</span>
+<span class="code-comment">// 公式（DTG[7:5]=10x段）：t_DTG = (32 + DTG[4:0]) × 8 × tDTS</span>
 
 <span class="code-keyword">void</span> <span class="code-func">BLDC_PWM_Init</span>(<span class="code-keyword">void</span>) {
   TIM_HandleTypeDef *htim = &amp;htim1;     <span class="code-comment">// 高级定时器</span>
-  htim->Instance->BDTR |= <span class="code-number">0x80</span>;          <span class="code-comment">// 设置死区约1.78us</span>
+  htim->Instance->BDTR |= <span class="code-number">0x80</span>;          <span class="code-comment">// 设置死区约3.56us</span>
   htim->Instance->BDTR |= TIM_BDTR_MOE;  <span class="code-comment">// 主输出使能（不开就无PWM）*/</span>
 
   <span class="code-comment">// 启动3对互补PWM（CH1/CH1N, CH2/CH2N, CH3/CH3N）*/</span>
@@ -1597,10 +1604,9 @@ const MotorData = {
     <span class="code-keyword">float</span> v = t->a_max * ta;
     pos = t->q0 + dir * (<span class="code-number">0.5f</span> * t->a_max * ta * ta + v * (t->t - ta));  <span class="code-comment">// 匀速段</span>
   } <span class="code-keyword">else</span> {
-    <span class="code-keyword">float</span> t_dec = t->t - ta - tv;
-    <span class="code-keyword">float</span> v = t->a_max * ta;
-    pos = t->q1 - dir * (<span class="code-number">0.5f</span> * t->a_max * (ta - t_dec) * (ta - t_dec));  <span class="code-comment">// 减速段</span>
-    pos = t->q1 - dir * (<span class="code-number">0.5f</span> * t->a_max * (t->t_total - t->t) * (t->t_total - t->t));
+    <span class="code-comment">// 减速段：距终点剩余时间 ×² ×½a，从q1回退</span>
+    <span class="code-keyword">float</span> t_remain = t->t_total - t->t;   <span class="code-comment">// 距运动结束的剩余时间</span>
+    pos = t->q1 - dir * (<span class="code-number">0.5f</span> * t->a_max * t_remain * t_remain);
   }
   *q_out = pos;
   t->t += t->dt;
@@ -1792,9 +1798,9 @@ const MotorData = {
             <table class="compare-table">
               <thead><tr><th>模块</th><th>电压范围</th><th>电流</th><th>特点</th></tr></thead>
               <tbody>
-                <tr><td>L298N</td><td>5-35V</td><td>2A</td><td>最经典入门级，双H桥</td></tr>
-                <tr><td>TB6612FNG</td><td>2.25-13.5V</td><td>1.2A</td><td>效率更高、体积更小</td></tr>
-                <tr><td>DRV8833</td><td>2.7-10.8V</td><td>1.5A</td><td>TI出品、低功耗</td></tr>
+<tr><td>L298N</td><td>5-46V</td><td>2A(持续)/3A(峰值)</td><td>最经典入门级，双H桥</td></tr>
+<tr><td>TB6612FNG</td><td>2.5-13.5V</td><td>1.2A(持续)/3.2A(峰值)</td><td>效率更高、体积更小</td></tr>
+<tr><td>DRV8833</td><td>2.7-10.8V</td><td>1.5A(持续)/2A(峰值)</td><td>TI出品、低功耗</td></tr>
               </tbody>
             </table>
           </div>
@@ -1922,15 +1928,16 @@ const MotorData = {
         `},
         { title: '驱动方式与细分', content: `
           <div class="overflow-x-auto mb-3"><table class="compare-table">
-            <thead><tr><th>模式</th><th>等效步距角</th><th>精度</th><th>扭矩</th><th>噪音</th></tr></thead>
+            <thead><tr><th>模式</th><th>等效步距角</th><th>精度</th><th>定位力矩</th><th>噪音</th></tr></thead>
             <tbody>
               <tr><td>整步(Full Step)</td><td>1.8°</td><td>低</td><td>100%</td><td>大</td></tr>
               <tr><td>半步(Half Step)</td><td>0.9°</td><td>中</td><td>~70%</td><td>中</td></tr>
-              <tr><td>1/4细分(Micro-16)</td><td>0.1125°</td><td>高</td><td>~50%</td><td>小</td></tr>
-              <tr><td>1/16细分(Micro-256)</td><td>0.007°</td><td>极高</td><td>~40%</td><td><strong>极小</strong></td></tr>
+              <tr><td>1/4细分</td><td>0.45°</td><td>中高</td><td>~40%</td><td>小</td></tr>
+              <tr><td>1/16细分</td><td>0.1125°</td><td>高</td><td>~10%</td><td>很小</td></tr>
+              <tr><td>1/256细分</td><td>0.007°</td><td>极高</td><td>~1%</td><td><strong>极小</strong></td></tr>
             </tbody>
           </table></div>
-          <div class="info-box warning mt-3"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg><div><strong>细分不是免费的</strong>：细分越高，扭矩越小（约按1/√细分成比例衰减）。1/16细分后扭矩约为整步的50%。选细分时需要在<strong>精度</strong>和<strong>扭矩</strong>之间权衡。</div></div>
+          <div class="info-box warning mt-3"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg><div><strong>常见误解澄清</strong>：细分<strong>不改变电机的额定保持转矩（holding torque）</strong>——堵转时该多大还是多大。上表的"定位力矩"指的是<strong>单步微动时的位置刚度</strong>（microstep stiffness），细分越高，单个微步能产生的回复力矩越小（开环快速微步切换时尤其明显）。所以"细分越高电机越没劲"是片面的——额定负载能力不变，变的只是微步精度和低速平稳性。</div></div>
         `},
         { title: '选型参数详解', content: `
           <p>选型步进电机，以下参数是关键决策依据：</p>
@@ -3013,10 +3020,25 @@ const QuizData = {
   ],
   'motor-hobby-servo': [
     { question: '舵机控制信号的频率是多少？', options: ['20Hz', '50Hz', '100Hz', '200Hz'], answer: 1, explanation: '标准舵机使用50Hz PWM信号（周期20ms）。脉冲宽度0.5-2.5ms对应0-180°角度范围。' },
-    { question: 'STM32 TIM4输出50Hz PWM，PSC=83，ARR=19999，对应的CCR值范围（0.5-2.5ms）是？', options: ['25-125', '50-150', '100-200', '250-750'], answer: 0, explanation: 'CCR = (脉冲宽度ms / 20ms) × 20000。0.5ms→500, 1.5ms→1500, 2.5ms→2500。注意ARR=19999，所以范围是500-2500。' },
+    { question: 'STM32 TIM4输出50Hz PWM，PSC=83，ARR=19999，对应的CCR值范围（0.5-2.5ms）是？', options: ['500-1500', '500-2500', '1000-2000', '250-750'], answer: 1, explanation: '定时器时钟 = 84MHz/(83+1) = 1MHz，每个计数值 = 1us。0.5ms = 500个计数，2.5ms = 2500个计数。所以 CCR 范围是 500-2500（占 ARR=19999 的 2.5%-12.5%）。' },
     { question: '数字舵机相比模拟舵机的主要改进是？', options: ['更大的角度范围', '更高的刷新频率和更小的死区', '更低的供电电压', '不需要PWM信号'], answer: 1, explanation: '数字舵机内部MCU以约300Hz频率（模拟舵机仅50Hz）刷新驱动信号，死区更小、响应更快、定位更精确、静止力矩更大。' },
     { question: '舵机内部的位置反馈元件是什么？', options: ['光学编码器', '霍尔传感器', '电位器(可变电阻)', '旋转变压器'], answer: 2, explanation: '标准舵机使用与输出轴同轴连接的电位器（可变电阻），输出0-VCC的模拟电压代表当前角度。电位器磨损是舵机失效的常见原因。' },
     { question: '多舵机并联使用时，最重要的注意事项是？', options: ['使用更细的信号线', '独立供电，避免从MCU取电', '所有舵机接同一路PWM', '不需要共地'], answer: 1, explanation: '舵机堵转电流可达正常电流的5-10倍。多舵机同时动作时总电流可能远超MCU供电能力，必须使用独立5-6V大电流电源，但GND必须共地。' },
+  ],
+  'motor-brushed-dc': [
+    { question: '有刷直流电机靠什么实现电流换向？', options: ['MCU的电子开关', '机械换向器和电刷', '霍尔传感器', 'PWM信号'], answer: 1, explanation: '有刷电机通过转子上的机械换向器（换向片）和固定电刷接触，转子转动时自动切换绕组电流方向，保证转子持续受同向力矩。这也是它"有刷"名称的来源——优点是控制极简单，缺点是电刷会磨损、产生火花。' },
+    { question: 'H桥电路如何让直流电机反转？', options: ['增大PWM占空比', '交换对角线开关管的导通组合，使电流反向流过电机', '降低电压', '改变PWM频率'], answer: 1, explanation: 'H桥由4个开关管组成H形。导通左上+右下时电流从左到右流过电机（正转）；导通右上+左下时电流反向（反转）。同时关断可让电机滑行，对角短接可能耗制动。' },
+    { question: 'PWM调速的本质是什么？', options: ['改变电压幅值', '改变平均电压（占空比×电源电压），电机惯性起低通滤波作用', '改变电流方向', '改变电机极对数'], answer: 1, explanation: 'PWM是高频开关，电机绕组有电感，对高频相当于低通滤波，最终感受到的是平均电压 Vavg = D × Vcc（D=占空比）。所以调占空比就等于调平均电压，从而调转速。' },
+  ],
+  'motor-bldc': [
+    { question: '无刷直流电机(BLDC)相比有刷电机的主要优势是？', options: ['价格更低', '效率高、寿命长、无电刷磨损和维护', '控制更简单', '只能低速旋转'], answer: 1, explanation: 'BLDC用电子换向取代机械电刷，没有电刷磨损（寿命仅由轴承决定）、无火花（防爆）、效率85-95%（有刷60-75%）。代价是需要驱动电路和换向算法，控制复杂得多。' },
+    { question: 'BLDC的"极对数"如何影响转速？', options: ['极对数越多转速越快', '极对数越多，同样电频率下机械转速越慢（n = 60×f / p）', '极对数不影响转速', '极对数只影响扭矩不影响转速'], answer: 1, explanation: '转速公式 n = 60f/p（f=电频率，p=极对数）。极对数p越大，同样电频率下机械转速越低，但扭矩越大。这是"高速小极对数、大扭矩多极对数"选型原则的依据。' },
+    { question: 'BLDC两种主流控制方式是？', options: ['开环和闭环', '六步换向（梯形波）和FOC（正弦波）', '电压控制和电流控制', 'PWM和模拟'], answer: 1, explanation: '六步换向简单、有转矩脉动（每60°跳变）；FOC用正弦波连续控制、转矩平滑、效率高但算法复杂。DIY和入门首选六步，高性能场合（云台、机械臂）用FOC。' },
+  ],
+  'motor-servo': [
+    { question: '伺服电机与步进电机最本质的区别是？', options: ['伺服更贵', '伺服有编码器反馈构成闭环，步进通常开环', '伺服不能定位', '伺服功率更大'], answer: 1, explanation: '伺服电机自带编码器实时反馈位置，驱动器根据偏差闭环修正，所以不会"丢步"，高速高负载下仍保持精度。步进电机通常开环（发多少脉冲假设走多少），过载会丢步。代价是伺服系统更贵更复杂。' },
+    { question: '伺服系统的三大组成是？', options: ['电机+减速器+负载', '伺服电机+编码器+伺服驱动器', '电源+MCU+电机', '电机+传感器+显示器'], answer: 1, explanation: '伺服电机（执行）+ 编码器（位置反馈）+ 伺服驱动器（运行PID/FOC算法、驱动电机）。三者构成闭环。MCU通常通过脉冲/CANopen给驱动器下命令，不直接驱动电机。' },
+    { question: '伺服的三种基本控制模式是？', options: ['手动/自动/远程', '位置模式(PT)、速度模式(PV)、转矩模式(PQ)', '正向/反向/停止', '高压/低压/断电'], answer: 1, explanation: 'PT(位置)精确控制走到哪；PV(速度)精确控制转多快（传送带、卷绕）；PQ(转矩)精确控制输出多大扭矩（拧紧、压延）。机械臂关节通常用位置模式CSP(周期同步位置)。' },
   ],
 };
 

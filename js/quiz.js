@@ -69,6 +69,9 @@ const Quiz = {
     data[sectionId][qi] = { selected, correct: isCorrect };
     localStorage.setItem(this.STORAGE_KEY, JSON.stringify(data));
     // 重新渲染详情页
-    navigateTo(sectionId);
+    // 注意：电机页的 sectionId 形如 'motor-stepper'，但路由 key 是 'stepper'
+    // 需剥离 'motor-' 前缀，否则 navigateTo 找不到页面会回退到首页
+    const navTarget = sectionId.startsWith('motor-') ? sectionId.slice(6) : sectionId;
+    navigateTo(navTarget);
   },
 };
