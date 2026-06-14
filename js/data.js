@@ -251,58 +251,8 @@ const MotorData = {
           </div>
 
           <div class="svg-figure">
-            <svg viewBox="0 0 640 380" class="w-full max-w-2xl mx-auto" style="font-family:Consolas,monospace;font-size:14px">
-              <defs>
-                <marker id="arrR" markerWidth="10" markerHeight="10" refX="7" refY="5" orient="auto">
-                  <path d="M0,0 L10,5 L0,10 z" fill="#c0392b"/>
-                </marker>
-                <style>
-                  .lbl { paint-order: stroke; stroke: var(--bg-card); stroke-width: 4px; stroke-linejoin: round; }
-                </style>
-              </defs>
-
-              <!-- 上下电源轨（延长，加端点圆点）-->
-              <line x1="60" y1="60" x2="580" y2="60" stroke="var(--text-secondary)" stroke-width="2.5"/>
-              <line x1="60" y1="320" x2="580" y2="320" stroke="var(--text-secondary)" stroke-width="2.5"/>
-              <text x="20" y="65" class="lbl" fill="#c0392b" font-weight="bold">+V</text>
-              <text x="14" y="325" class="lbl" fill="var(--text-secondary)" font-weight="bold">GND</text>
-
-              <!-- 左右竖线（连接上下轨）-->
-              <line x1="180" y1="60" x2="180" y2="320" stroke="var(--text)" stroke-width="1.8"/>
-              <line x1="460" y1="60" x2="460" y2="320" stroke="var(--text)" stroke-width="1.8"/>
-
-              <!-- 4个MOS管，纵向居中分布，间距充足 -->
-              <!-- S1 左上（导通，红边）-->
-              <rect x="155" y="130" width="50" height="50" rx="5" fill="rgba(192,57,43,0.08)" stroke="#c0392b" stroke-width="2.5"/>
-              <text x="168" y="160" class="lbl" fill="#c0392b" font-weight="bold">S1</text>
-              <!-- S2 右上（关断，灰）-->
-              <rect x="435" y="130" width="50" height="50" rx="5" fill="none" stroke="var(--text-secondary)" stroke-width="1.5" stroke-dasharray="3,2"/>
-              <text x="448" y="160" class="lbl" fill="var(--text-secondary)">S2</text>
-              <!-- S3 左下（关断，灰）-->
-              <rect x="155" y="210" width="50" height="50" rx="5" fill="none" stroke="var(--text-secondary)" stroke-width="1.5" stroke-dasharray="3,2"/>
-              <text x="168" y="240" class="lbl" fill="var(--text-secondary)">S3</text>
-              <!-- S4 右下（导通，绿边）-->
-              <rect x="435" y="210" width="50" height="50" rx="5" fill="rgba(74,140,92,0.1)" stroke="#4a8c5c" stroke-width="2.5"/>
-              <text x="448" y="240" class="lbl" fill="#4a8c5c" font-weight="bold">S4</text>
-
-              <!-- 电机（中间圆圈M）大一些 -->
-              <circle cx="320" cy="195" r="42" fill="var(--bg-card)" stroke="var(--text)" stroke-width="2.5"/>
-              <text x="308" y="203" fill="var(--text)" font-size="22" font-weight="bold">M</text>
-              <line x1="180" y1="155" x2="278" y2="180" stroke="var(--text)" stroke-width="1.8"/>
-              <line x1="180" y1="235" x2="278" y2="210" stroke="var(--text)" stroke-width="1.8"/>
-              <line x1="362" y1="180" x2="460" y2="155" stroke="var(--text)" stroke-width="1.8"/>
-              <line x1="362" y1="210" x2="460" y2="235" stroke="var(--text)" stroke-width="1.8"/>
-
-              <!-- 电流路径（正转：S1→电机→S4）红色加粗带箭头 -->
-              <path d="M 320 60 L 180 60 L 180 130" fill="none" stroke="#c0392b" stroke-width="3" marker-end="url(#arrR)"/>
-              <path d="M 180 180 L 278 195" fill="none" stroke="#c0392b" stroke-width="3"/>
-              <path d="M 362 195 L 460 210" fill="none" stroke="#c0392b" stroke-width="3"/>
-              <path d="M 460 260 L 460 320" fill="none" stroke="#c0392b" stroke-width="3" marker-end="url(#arrR)"/>
-
-              <!-- 标注：底部说明，有背景框防重叠 -->
-              <text x="320" y="355" text-anchor="middle" class="lbl" fill="#c0392b" font-weight="bold">正转：S1+S4 导通，电流 +V→S1→电机(左→右)→S4→GND</text>
-            </svg>
-            <div class="text-center text-xs mt-1" style="color:var(--text-secondary)">图：H桥电路——4个开关管组成H形，对角导通控制电流方向（红=导通+电流路径，灰虚=关断）</div>
+            <div data-chart="hbridge" class="chart-container" style="min-height:420px;padding:8px"></div>
+            <div class="text-center text-xs mt-1" style="color:var(--text-secondary)">图：H桥电路——点击上方按钮切换4种状态，观察导通MOS管和电流路径的变化</div>
           </div>
 
           <h4 class="font-medium mt-6 mb-2">PWM调速原理</h4>
@@ -1558,53 +1508,8 @@ const MotorData = {
           </p>
 
           <div class="svg-figure">
-            <svg viewBox="0 0 520 360" class="w-full max-w-xl mx-auto" style="font-family:Consolas,monospace;font-size:14px">
-              <defs>
-                <marker id="axX" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="var(--text-secondary)"/></marker>
-                <marker id="axY" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,9 L4.5,0 L9,9 z" fill="var(--text-secondary)"/></marker>
-                <style>
-                  .lbl { paint-order: stroke; stroke: var(--bg-card); stroke-width: 4px; stroke-linejoin: round; }
-                </style>
-              </defs>
-
-              <!-- 坐标轴 -->
-              <line x1="50" y1="310" x2="490" y2="310" stroke="var(--text-secondary)" stroke-width="1.8" marker-end="url(#axX)"/>
-              <line x1="50" y1="310" x2="50" y2="30" stroke="var(--text-secondary)" stroke-width="1.8" marker-end="url(#axY)"/>
-              <text x="496" y="326" class="lbl" fill="var(--text-secondary)" font-weight="bold">x</text>
-              <text x="30" y="28" class="lbl" fill="var(--text-secondary)" font-weight="bold">y</text>
-              <text x="32" y="328" class="lbl" fill="var(--text-secondary)" font-size="12">O</text>
-
-              <!-- θ1 角度弧（从x轴到L1方向，约40°），加粗加大 -->
-              <path d="M 115 310 A 65 65 0 0 0 100 260" fill="none" stroke="#d4940a" stroke-width="2.5"/>
-              <text x="124" y="290" class="lbl" fill="#d4940a" font-weight="bold">θ₁</text>
-
-              <!-- 连杆1 L1（粗，primary色）：从原点(50,310)到关节2，方向约40°，长155 -->
-              <line x1="50" y1="310" x2="169" y2="186" stroke="#c2883e" stroke-width="6" stroke-linecap="round"/>
-              <text x="85" y="266" class="lbl" fill="#c2883e" font-weight="bold" font-size="15">L₁</text>
-
-              <!-- 关节1（原点）和关节2（圆点）-->
-              <circle cx="50" cy="310" r="7" fill="var(--text)"/>
-              <circle cx="169" cy="186" r="7" fill="var(--text)"/>
-
-              <!-- θ2 角度弧 -->
-              <path d="M 200 156 A 46 46 0 0 0 204 204" fill="none" stroke="#d4940a" stroke-width="2.5"/>
-              <text x="210" y="172" class="lbl" fill="#d4940a" font-weight="bold">θ₂</text>
-
-              <!-- 连杆2 L2（粗，success色）-->
-              <line x1="169" y1="186" x2="346" y2="116" stroke="#4a8c5c" stroke-width="6" stroke-linecap="round"/>
-              <text x="240" y="142" class="lbl" fill="#4a8c5c" font-weight="bold" font-size="15">L₂</text>
-
-              <!-- 末端执行器（夹爪示意，红圈）-->
-              <circle cx="346" cy="116" r="9" fill="none" stroke="#c0392b" stroke-width="3"/>
-              <text x="362" y="110" class="lbl" fill="#c0392b" font-weight="bold">末端 (x, y)</text>
-
-              <!-- 末端到坐标轴的投影虚线 -->
-              <line x1="346" y1="116" x2="346" y2="310" stroke="var(--border)" stroke-dasharray="4,3" stroke-width="1.5"/>
-              <line x1="346" y1="116" x2="50" y2="116" stroke="var(--border)" stroke-dasharray="4,3" stroke-width="1.5"/>
-              <text x="338" y="328" class="lbl" fill="var(--text-secondary)" font-size="12">x</text>
-              <text x="24" y="120" class="lbl" fill="var(--text-secondary)" font-size="12">y</text>
-            </svg>
-            <div class="text-center text-xs mt-1" style="color:var(--text-secondary)">图：2-DOF平面机械臂——两段连杆L₁/L₂，关节角θ₁/θ₂，末端坐标(x,y)</div>
+            <div data-chart="arm" class="chart-container" style="min-height:400px;padding:8px"></div>
+            <div class="text-center text-xs mt-1" style="color:var(--text-secondary)">图：2-DOF平面机械臂——拖动红色末端节点（或点击图内任意位置），实时显示θ₁/θ₂/末端坐标，体会正逆运动学</div>
           </div>
 
           <div class="formula-block">
