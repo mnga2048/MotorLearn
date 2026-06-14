@@ -25,6 +25,8 @@ const MotorData = {
         { id: 'advanced-sensorless', label: '无感控制' },
         { id: 'advanced-multiloop', label: '多环控制' },
         { id: 'servo-control', label: '伺服控制与通信' },
+        { id: 'engineering-validation', label: '工程验证方法论' },
+        { id: 'current-sense', label: '电流采样硬件' },
       ]
     },
     {
@@ -1558,6 +1560,48 @@ TIM_HandleTypeDef htim1;
             <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
             <div><strong>调试顺序</strong>：先调电流环（最内环），再调速度环，最后调位置环。由内到外逐级调试，确保内环稳定后再调外环。</div>
           </div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">一、带宽设计原则（内环要比外环快5~10倍）</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            串级控制能成立的前提：<strong>内环带宽远高于外环</strong>。这样外环变化时，内环能"瞬间"跟上，对外环而言内环近似为 1:1 跟随。工程经验法则：
+          </p>
+          <div class="formula-block">
+            $f_{\\text{内环}} \\geq (5\\sim10) \\times f_{\\text{外环}}$
+            <div class="text-sm text-gray-500 mt-2">若内环不够快，外环会"等待"内环响应，导致整体相位滞后、振荡甚至失稳</div>
+          </div>
+          <div class="overflow-x-auto"><table class="compare-table">
+            <thead><tr><th>环路</th><th>典型带宽</th><th>采样周期</th><th>主要扰动来源</th></tr></thead>
+            <tbody>
+              <tr><td class="font-medium">电流环</td><td>1~10 kHz</td><td>50~100 μs</td><td>母线电压波动、反电动势</td></tr>
+              <tr><td class="font-medium">速度环</td><td>100~500 Hz</td><td>1~2 ms</td><td>负载突变、摩擦</td></tr>
+              <tr><td class="font-medium">位置环</td><td>10~100 Hz</td><td>5~10 ms</td><td>轨迹加减速、外部冲击</td></tr>
+            </tbody>
+          </table></div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">二、前馈补偿（提升跟踪精度，不增加振荡风险）</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            纯反馈控制（PID）总有滞后——目标变了，误差先出现，控制器才动作。<strong>前馈</strong>把已知的"未来指令"直接叠加到输出，提前补偿，把误差消灭在发生前。典型应用：
+          </p>
+          <div class="step-list">
+            <div class="step-item"><div><strong>速度前馈</strong>：轨迹规划算出的目标速度，直接加到速度环输出。电机不需要等位置误差累积就能动。</div></div>
+            <div class="step-item"><div><strong>加速度前馈</strong>：把目标加速度×转动惯量=所需力矩，直接加到电流环。消除加减速段的"跟随误差"。</div></div>
+            <div class="step-item"><div><strong>重力前馈</strong>（机械臂）：根据关节角度算出自重力矩，前馈补偿。让 PID 只处理动态部分，静态保持零误差。</div></div>
+          </div>
+          <div class="info-box tip"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>前馈 vs 加大PID</strong>：想减小跟随误差，新手本能是加大Kp，但这会引发超调振荡。前馈是更优解——它<strong>不进入反馈回路</strong>，不会影响稳定性，纯粹叠加补偿量。这是专业伺服比业余方案跟踪精度高数倍的关键。</div></div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">三、各环的科学调试方法（避免"乱改参数看现象"）</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            下面是<strong>可量化的调试流程</strong>，每一步都有明确的验证标准，而非凭感觉：
+          </p>
+          <div class="overflow-x-auto"><table class="compare-table">
+            <thead><tr><th>环路</th><th>激励信号</th><th>看什么</th><th>判定标准</th></tr></thead>
+            <tbody>
+              <tr><td class="font-medium">电流环</td><td>电流阶跃（0→额定）</td><td>电流波形上升时间</td><td>上升时间&lt;1ms，超调&lt;10%，无振荡</td></tr>
+              <tr><td class="font-medium">速度环</td><td>速度阶跃（0→额定RPM）</td><td>速度响应曲线</td><td>上升时间 50~100ms，超调&lt;20%</td></tr>
+              <tr><td class="font-medium">位置环</td><td>位置阶跃（走一段距离）</td><td>位置跟随误差</td><td>稳态误差≈0，无超调（位置环一般不加D）</td></tr>
+            </tbody>
+          </table></div>
+          <div class="info-box warning"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg><div><strong>阶跃响应是金标准</strong>：给一个突变的指令（如电流瞬间从0跳到额定），用串口输出实际值画波形。看<strong>上升时间、超调量、是否振荡</strong>三个指标。这比"看电机转得顺不顺"客观100倍。具体方法见 <a href="#" onclick="navigateTo('engineering-validation');return false;" style="color:var(--primary)">工程验证方法论</a>。</div></div>
         `,
       },
       {
@@ -1692,6 +1736,283 @@ TIM_HandleTypeDef htim1;
               <tr><td class="font-medium">EtherCAT</td><td>高</td><td>极高</td><td>极好(μs级同步)</td><td>高端机械臂、数控机床</td></tr>
             </tbody>
           </table></div>
+        `,
+      },
+      {
+        id: 'engineering-validation',
+        title: '工程验证方法论',
+        desc: '从"乱改参数看现象"到"科学调试"——电机控制研发的系统化测试与验证流程',
+        icon: '🔬',
+        tags: ['工程方法', '调试', '必读'],
+        content: `
+          <h3 class="text-lg font-semibold mb-3">为什么需要这套方法论</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-4">
+            新手调电机的典型困境：<strong>改了一堆参数，凭"感觉"判断好坏，说不清哪里对了哪里错了</strong>。改了A参数电机好像稳了，改了B参数又抖了，却不知道为什么。这种"试错法"效率极低，且无法复现、无法传承经验。
+          </p>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-4">
+            工程界的标准做法是：<strong>把"调参"变成"可量化的测试"</strong>——定义明确的激励信号、采集响应数据、对照客观指标判定、记录每次改动的效果。本节把这套方法落地到电机控制的每个环节。
+          </p>
+          <div class="info-box tip mb-6"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>核心原则</strong>：看得见的才能调。<strong>所有关键变量必须实时输出到上位机画波形</strong>——目标值、实际值、误差、PWM占空比、电流。靠肉眼观察电机动作，只能发现"明显故障"，永远调不出高性能。</div></div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">一、研发的五个阶段（V模型）</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            专业的电机控制研发遵循<strong>V字型流程</strong>，左侧自顶向下设计，右侧自底向上验证。每个阶段都有明确的输入输出和验证手段：
+          </p>
+          <div class="step-list">
+            <div class="step-item"><div><strong>① 需求定义</strong>：明确性能指标——最大转速、定位精度(±多少)、阶跃响应时间、超调量上限。没有量化指标就无法判定"调好了"。</div></div>
+            <div class="step-item"><div><strong>② 算法仿真</strong>（Matlab/Simulink 或 Python）：先在仿真里验证算法逻辑、初估参数范围。仿真里能随意改参数看响应，零成本试错。</div></div>
+            <div class="step-item"><div><strong>③ 硬件在环</strong>：算法移植到MCU，先用<strong>开环/极低参数</strong>验证硬件（PWM、ADC、编码器）正常，再逐步切入闭环。</div></div>
+            <div class="step-item"><div><strong>④ 单元调试</strong>：逐个环路调试（电流环→速度环→位置环），每环用标准激励测响应，达标后再进下一环。</div></div>
+            <div class="step-item"><div><strong>⑤ 系统验证</strong>：整体性能测试、边界条件测试（堵转、过载、急停）、长时间稳定性测试。对照①的需求逐项验收。</div></div>
+          </div>
+          <div class="info-box warning mt-3"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg><div><strong>新手最常跳过的是②和④</strong>：直接上硬件乱试，不仿真、不逐环验证。结果问题混在一起——明明是电流环没调好，却在改位置环参数，永远调不对。V模型的价值就是<strong>隔离问题</strong>。</div></div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">二、激励信号：用标准输入测试系统</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            不要用"随便给个目标"测试。用控制理论里的<strong>标准激励信号</strong>，每种揭示系统不同特性：
+          </p>
+          <div class="overflow-x-auto"><table class="compare-table">
+            <thead><tr><th>激励类型</th><th>波形</th><th>揭示什么</th><th>典型用法</th></tr></thead>
+            <tbody>
+              <tr><td class="font-medium">阶跃信号</td><td>瞬间从0跳到目标值</td><td>动态响应：上升时间、超调、稳态误差</td><td>调PID最常用，看响应曲线</td></tr>
+              <tr><td class="font-medium">斜坡信号</td><td>匀速增长</td><td>跟随误差（稳态误差与速度成正比）</td><td>测跟踪精度，验证前馈效果</td></tr>
+              <tr><td class="font-medium">正弦扫频</td><td>频率从低到高的正弦波</td><td>频率响应、带宽、相位裕度</td><td>专业频域分析，需FFT</td></tr>
+              <tr><td class="font-medium">脉冲信号</td><td>短时冲击</td><td>冲击响应、系统阻尼</td><td>模拟负载突变</td></tr>
+            </tbody>
+          </table></div>
+          <div class="info-box tip mt-3"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>阶跃响应的三要素</strong>：①<strong>上升时间</strong>(从10%到90%的时间，越短响应越快)；②<strong>超调量</strong>(超过目标值的百分比，越小越稳但可能越慢)；③<strong>稳态误差</strong>(稳定后的残余偏差，应为0或极小)。这三个数字就是评判"调好了没"的客观标准。</div></div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">三、数据采集：让看不见的变量变成波形</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            这是整个方法论的基础设施。每个控制周期把关键变量通过串口/USB发出来，上位机实时画图：
+          </p>
+          <div class="code-block"><span class="code-comment">/* 调试数据采集框架（每个控制周期调用一次）
+ * 用环形缓冲区暂存，满一批再发，避免高频串口阻塞控制环 */</span>
+<span class="code-keyword">#define</span> DBG_BUF_SIZE  <span class="code-number">64</span>
+<span class="code-keyword">typedef struct</span> {
+  <span class="code-keyword">uint32_t</span> tick;         <span class="code-comment">// 时间戳(控制周期计数)</span>
+  <span class="code-keyword">float</span> target;          <span class="code-comment">// 目标值(目标位置/速度/电流)</span>
+  <span class="code-keyword">float</span> actual;          <span class="code-comment">// 实际值(传感器读数)</span>
+  <span class="code-keyword">float</span> error;           <span class="code-comment">// 误差 = target - actual</span>
+  <span class="code-keyword">float</span> output;          <span class="code-comment">// 控制器输出(PWM占空比等)</span>
+} Debug_Sample_t;
+
+Debug_Sample_t g_dbg_buf[DBG_BUF_SIZE];
+<span class="code-keyword">volatile uint16_t</span> g_dbg_idx = <span class="code-number">0</span>;
+
+<span class="code-comment">/* 在控制环里调用，记录一帧数据 */</span>
+<span class="code-keyword">void</span> <span class="code-func">DBG_Capture</span>(<span class="code-keyword">float</span> tgt, <span class="code-keyword">float</span> act, <span class="code-keyword">float</span> out) {
+  <span class="code-keyword">uint16_t</span> i = g_dbg_idx;
+  g_dbg_buf[i].tick   = g_tick++;
+  g_dbg_buf[i].target = tgt;
+  g_dbg_buf[i].actual = act;
+  g_dbg_buf[i].error  = tgt - act;
+  g_dbg_buf[i].output = out;
+  <span class="code-keyword">if</span> (++g_dbg_idx &gt;= DBG_BUF_SIZE) {
+    g_dbg_idx = <span class="code-number">0</span>;
+    <span class="code-func">DBG_Flush</span>();   <span class="code-comment">// 缓冲满，批量发送(DMA或中断)</span>
+  }
+}
+
+<span class="code-comment">/* 批量发送：CSV格式，上位机直接画图
+ * 格式：tick,target,actual,error,output */</span>
+<span class="code-keyword">void</span> <span class="code-func">DBG_Flush</span>(<span class="code-keyword">void</span>) {
+  <span class="code-keyword">for</span> (<span class="code-keyword">uint16_t</span> i = <span class="code-number">0</span>; i &lt; DBG_BUF_SIZE; i++) {
+    <span class="code-func">printf</span>(<span class="code-string">"%lu,%.3f,%.3f,%.3f,%.3f\\n"</span>,
+           g_dbg_buf[i].tick, g_dbg_buf[i].target,
+           g_dbg_buf[i].actual, g_dbg_buf[i].error, g_dbg_buf[i].output);
+  }
+}</div>
+          <div class="info-box info mt-3"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>上位机工具选择</strong>：① <strong>Serial Studio</strong>(开源，接CSV自动画图，最推荐)；② <strong>VOFA+</strong>(国产，VOF协议拖拽控件)；③ <strong>自己写Python脚本</strong>(pyserial+matplotlib，最灵活)。数据格式用CSV最通用。</div></div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">四、各环节的具体验证清单</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            下面把方法论落地到电机控制的每个环节，每项都是<strong>可执行的测试步骤 + 通过标准</strong>：
+          </p>
+
+          <h4 class="font-medium mt-4 mb-2">① 硬件验证（写代码前先确认硬件正常）</h4>
+          <div class="overflow-x-auto"><table class="compare-table">
+            <thead><tr><th>测试项</th><th>方法</th><th>通过标准</th></tr></thead>
+            <tbody>
+              <tr><td class="font-medium">PWM输出</td><td>示波器测PWM引脚</td><td>频率正确、占空比可调、互补管有死区</td></tr>
+              <tr><td class="font-medium">ADC采样</td><td>短接ADC输入到GND/VCC，读1000次</td><td>读数稳定，噪声&lt;5 LSB</td></tr>
+              <tr><td class="font-medium">编码器</td><td>手动转一圈，读CNT变化</td><td>变化数 = PPR×4，正反向计数正确</td></tr>
+              <tr><td class="font-medium">电流零点</td><td>电机断电，读相电流ADC</td><td>三相应接近VCC/2(零电流偏置)</td></tr>
+            </tbody>
+          </table></div>
+
+          <h4 class="font-medium mt-4 mb-2">② 电流环验证（最内环，先调）</h4>
+          <div class="overflow-x-auto"><table class="compare-table">
+            <thead><tr><th>测试项</th><th>激励</th><th>看什么</th><th>通过标准</th></tr></thead>
+            <tbody>
+              <tr><td class="font-medium">电流阶跃响应</td><td>Iq_ref 从0阶跃到50%额定</td><td>实际电流曲线</td><td>上升时间&lt;1ms，超调&lt;10%</td></tr>
+              <tr><td class="font-medium">电流跟踪</td><td>Iq_ref 给正弦波(如200Hz)</td><td>实际电流 vs 目标</td><td>幅值无衰减，相位滞后&lt;10°</td></tr>
+              <tr><td class="font-medium">噪声水平</td><td>稳态(固定Iq)</td><td>电流纹波峰峰值</td><td>&lt;额定电流的5%</td></tr>
+            </tbody>
+          </table></div>
+
+          <h4 class="font-medium mt-4 mb-2">③ 速度环验证</h4>
+          <div class="overflow-x-auto"><table class="compare-table">
+            <thead><tr><th>测试项</th><th>激励</th><th>看什么</th><th>通过标准</th></tr></thead>
+            <tbody>
+              <tr><td class="font-medium">速度阶跃响应</td><td>0→额定RPM阶跃</td><td>速度曲线</td><td>上升时间50~100ms，超调&lt;20%</td></tr>
+              <tr><td class="font-medium">负载扰动</td><td>稳速运行时突加负载</td><td>速度跌落与恢复时间</td><td>跌落&lt;10%，恢复&lt;200ms</td></tr>
+              <tr><td class="font-medium">低速平稳性</td><td>极低目标速度(如1RPM)</td><td>速度波动</td><td>无明显爬行/抖动</td></tr>
+            </tbody>
+          </table></div>
+
+          <h4 class="font-medium mt-4 mb-2">④ 位置环验证（加减速/S曲线在这里验证）</h4>
+          <div class="overflow-x-auto"><table class="compare-table">
+            <thead><tr><th>测试项</th><th>激励</th><th>看什么</th><th>通过标准</th></tr></thead>
+            <tbody>
+              <tr><td class="font-medium">位置阶跃</td><td>走一段固定距离</td><td>位置+速度曲线</td><td>到达后稳态误差≈0，无超调</td></tr>
+              <tr><td class="font-medium">跟随误差</td><td>匀速运动(斜坡)</td><td>目标-实际位置差</td><td>误差恒定且小(加前馈后趋近0)</td></tr>
+              <tr><td class="font-medium">S曲线平滑度</td><td>带加减速的运动</td><td>加速度是否连续</td><td>无突变冲击，速度曲线S形</td></tr>
+              <tr><td class="font-medium">重复定位精度</td><td>同一目标走10次</td><td>每次停止位置</td><td>偏差&lt;1个最小分辨率</td></tr>
+            </tbody>
+          </table></div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">五、S曲线参数的科学调法（解决你的具体痛点）</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            你提到"乱改S曲线参数看电机现象"——这里给出系统化的流程。S曲线的核心参数是<strong>最大速度、最大加速度、加加速(jerk)</strong>。调参顺序：
+          </p>
+          <div class="step-list">
+            <div class="step-item"><div><strong>第1步：确定最大速度</strong>。单独测——发固定速度指令，逐步增大直到电机出现丢步(步进)或电流饱和(无刷)。最大可用速度 = 出现异常前速度的 80%。</div></div>
+            <div class="step-item"><div><strong>第2步：确定最大加速度</strong>。固定速度，逐步增大加速度，观察起步/停止时是否丢步或过冲。最大可用加速度 = 异常前的 60~70%（留余量应对负载变化）。</div></div>
+            <div class="step-item"><div><strong>第3步：调加加速(jerk)</strong>。这是S曲线区别于梯形的关键。从大值开始减小，同时<strong>串口输出加速度波形</strong>，直到加速度曲线从"突变"变成"S形平滑"。</div></div>
+            <div class="step-item"><div><strong>第4步：验证</strong>。用<strong>编码器读实际位置</strong>，和目标位置对比。理想情况：实际位置曲线紧贴目标，停止时误差≈0。这就是判定S曲线参数是否合适的客观标准。</div></div>
+          </div>
+          <div class="info-box tip mt-3"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>关键转变</strong>：从"看电机转得顺不顺"→<strong>"看目标位置和实际位置的误差曲线"</strong>。前者主观且只能发现严重问题；后者客观，能发现微小的跟随误差、过冲、抖动。配合<strong>重复定位精度测试</strong>(同目标走10次看离散度)，能全面评估S曲线质量。</div></div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">六、参数调优记录表（必备工程习惯）</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            每次改参数都要记录<strong>改动前后的响应指标</strong>，否则调着调着就忘了哪个参数起作用。推荐用表格或版本控制：
+          </p>
+          <div class="overflow-x-auto"><table class="compare-table">
+            <thead><tr><th>版本</th><th>Kp</th><th>Ki</th><th>Kd</th><th>上升时间</th><th>超调</th><th>备注</th></tr></thead>
+            <tbody>
+              <tr><td class="font-mono">v1</td><td>0.5</td><td>0.01</td><td>0</td><td>120ms</td><td>35%</td><td>太慢，超调大</td></tr>
+              <tr><td class="font-mono">v2</td><td>1.0</td><td>0.01</td><td>0</td><td>60ms</td><td>15%</td><td>更快，超调减小</td></tr>
+              <tr><td class="font-mono">v3</td><td>1.0</td><td>0.02</td><td>0</td><td>58ms</td><td>8%</td><td>加Ki消稳态误差</td></tr>
+              <tr><td class="font-mono">v4</td><td>1.2</td><td>0.02</td><td>0</td><td>45ms</td><td>12%</td><td>再加Kp，略超调可接受</td></tr>
+            </tbody>
+          </table></div>
+          <div class="info-box info mt-3"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>进阶：用阶跃响应拟合传递函数</strong>。把阶跃响应数据导入 MATLAB 的 System Identification 工具箱，能反推出电机的传递函数模型。有了模型，就能用理论方法(如极点配置)直接算出最优PID参数，而不是试错。这是从"调参"到"设计参数"的跨越。</div></div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">七、工具链总览</h3>
+          <div class="overflow-x-auto"><table class="compare-table">
+            <thead><tr><th>环节</th><th>工具</th><th>用途</th><th>成本</th></tr></thead>
+            <tbody>
+              <tr><td class="font-medium">仿真</td><td>MATLAB/Simulink, Python控制库</td><td>算法验证、参数初估</td><td>免费(Python)/付费(MATLAB)</td></tr>
+              <tr><td class="font-medium">数据采集</td><td>Serial Studio, VOFA+, 自写Python</td><td>实时波形可视化</td><td>免费</td></tr>
+              <tr><td class="font-medium">硬件调试</td><td>逻辑分析仪, 示波器, 万用表</td><td>PWM/ADC/通信波形验证</td><td>50~500元</td></tr>
+              <tr><td class="font-medium">参数辨识</td><td>MATLAB Ident工具箱</td><td>从响应反推电机模型</td><td>付费(学生版可)</td></tr>
+              <tr><td class="font-medium">版本管理</td><td>Git + 参数记录表</td><td>追踪每次改动效果</td><td>免费</td></tr>
+            </tbody>
+          </table></div>
+
+          <div class="info-box tip mt-6"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>一句话总结</strong>：把"调电机"变成"做实验"——定义激励、采集数据、对照指标、记录过程。这套方法前期投入(搭数据采集)看似麻烦，但一旦建立，调试效率提升10倍，且经验可复现可传承。这也是工程师和爱好者的本质区别。</div></div>
+        `,
+      },
+      {
+        id: 'current-sense',
+        title: '电流采样硬件',
+        desc: 'FOC/过流保护的基础——shunt+运放、INA240、ACS712选型与电路设计',
+        icon: '🔌',
+        tags: ['硬件', 'FOC'],
+        content: `
+          <h3 class="text-lg font-semibold mb-3">为什么电流采样是FOC的命脉</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-4">
+            FOC 的所有计算（Clarke/Park/PID）都建立在<strong>实时相电流</strong>之上。电流采不准，后面全错。同时电流采样也是<strong>过流保护</strong>的硬件基础。本节讲清楚几种采样方案的原理、选型、电路要点。
+          </p>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">一、采样电阻法（Shunt + 运放，FOC主流）</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            在电机回路里串一个<strong>小阻值精密电阻(shunt)</strong>，电流流过时产生压降，经运放放大后送 ADC。三种安装位置各有特点：
+          </p>
+          <div class="overflow-x-auto"><table class="compare-table">
+            <thead><tr><th>位置</th><th>原理</th><th>优点</th><th>缺点</th><th>适用</th></tr></thead>
+            <tbody>
+              <tr><td class="font-medium">下桥臂采样</td><td>shunt串在每个下桥MOS的源极到地</td><td>运放输入共地，简单；MOS关断时无电流</td><td>只能在PWM特定时刻采样</td><td>FOC最常用</td></tr>
+              <tr><td class="font-medium">相线采样</td><td>shunt串在电机相线上</td><td>任意时刻都能采</td><td>需高共模运放，成本高</td><td>高精度伺服</td></tr>
+              <tr><td class="font-medium">直流母线采样</td><td>shunt串在母线</td><td>只需一个电阻</td><td>无法区分三相电流</td><td>过流保护、BEMF检测</td></tr>
+            </tbody>
+          </table></div>
+          <div class="formula-block">
+            $I = \\frac{V_{shunt} \\times G_{opamp}}{R_{shunt}}, \\quad V_{shunt} = I \\times R_{shunt}$
+            <div class="text-sm text-gray-500 mt-2">例：10A电流 × 5mΩ电阻 = 50mV压降，经20倍运放 = 1V → ADC读数对应10A</div>
+          </div>
+          <div class="info-box tip mt-3"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>Shunt选型</strong>：阻值越小压降越小(发热少)，但信号弱需更大运放增益。典型 1~10mΩ，功率 = I²R。10A用5mΩ电阻，功耗=0.5W，选<strong>1W以上的精密(1%)金属膜电阻</strong>。专用的4端子开尔文接法电阻精度更高。</div></div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">二、运放选型（关键：带宽 + 共模范围）</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            电流采样运放不是随便选的，核心指标是<strong>共模抑制比(CMR)</strong>和<strong>带宽</strong>。下桥臂采样时，MOS开关瞬间会产生共模电压跳变，运放必须抑制它：
+          </p>
+          <div class="overflow-x-auto"><table class="compare-table">
+            <thead><tr><th>器件</th><th>类型</th><th>带宽</th><th>特点</th><th>典型用途</th></tr></thead>
+            <tbody>
+              <tr><td class="font-medium">INA240</td><td>专用电流检测运放</td><td>400kHz</td><td>高CMR(>100dB)、内置固定增益、抗PWM共模</td><td>FOC三相采样首选</td></tr>
+              <tr><td class="font-medium">INA181</td><td>通用低成本</td><td>260kHz</td><td>便宜、增益可选(20~500)</td><td>低成本FOC</td></tr>
+              <tr><td class="font-medium">OPA2376</td><td>精密运放(自搭电路)</td><td>5.5MHz</td><td>灵活，但要自己设计差分电路</td><td>高精度定制</td></tr>
+              <tr><td class="font-medium">STM32内部运放</td><td>MCU内置(PGA)</td><td>几MHz</td><td>省外部元件，STM32G4/F334有</td><td>集成度高的方案</td></tr>
+            </tbody>
+          </table></div>
+          <div class="info-box warning"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg><div><strong>带宽不能太低</strong>：FOC电流采样在PWM周期中点，信号含高频成分。运放带宽若低于PWM频率的5倍，信号会失真。20kHz PWM至少需100kHz带宽运放，INA240的400kHz绰绰有余。</div></div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">三、霍尔电流传感器（隔离采样）</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            利用霍尔效应测磁场，电流越大磁场越强。最大优势是<strong>电气隔离</strong>（被测电路和测量电路无电气连接），适合高压大电流：
+          </p>
+          <div class="overflow-x-auto"><table class="compare-table">
+            <thead><tr><th>器件</th><th>量程</th><th>隔离</th><th>带宽</th><th>适用</th></tr></thead>
+            <tbody>
+              <tr><td class="font-medium">ACS712</td><td>±5/20/30A</td><td>2.1kV</td><td>80kHz</td><td>低压过流保护、教学</td></tr>
+              <tr><td class="font-medium">ACS724/ACS37002</td><td>±50~100A</td><td>5kV</td><td>120kHz</td><td>电动工具、e-bike</td></tr>
+              <tr><td class="font-medium">闭环霍尔(LEM系列)</td><td>数百~千A</td><td>极高</td><td>高</td><td>工业伺服、变频器</td></tr>
+            </tbody>
+          </table></div>
+          <div class="info-box info"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>ACS712用于FOC的局限</strong>：带宽80kHz看似够，但<strong>零点漂移大、噪声大、带宽实际更低</strong>，不适合FOC的精密相电流采样。它更适合<strong>过流保护</strong>（慢速监测母线电流，超阈值即停机）。FOC采样还是选INA240+shunt。</div></div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">四、采样时序（FOC采准电流的关键）</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            下桥臂采样必须在<strong>下桥MOS导通期间</strong>采（此时电流流过shunt）。在PWM周期中点采样，避免开关瞬间的噪声。用定时器联动ADC实现：
+          </p>
+          <div class="step-list">
+            <div class="step-item"><div><strong>硬件联动</strong>：PWM定时器的"更新事件"(周期中点)触发ADC注入组转换。STM32配置 TIM TRGO → ADC Inject。</div></div>
+            <div class="step-item"><div><strong>双通道同步</strong>：同时采两相电流(Ia, Ib)，用ADC的双通道同步模式，保证时间一致。</div></div>
+            <div class="step-item"><div><strong>ADC完成后中断</strong>：ADC转换完成中断里立即跑FOC算法(读电流→Clarke→Park→PI→反变换→写PWM)，一气呵成。</div></div>
+          </div>
+          <div class="info-box tip mt-3"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>采样时刻错误的后果</strong>：若在MOS开关瞬间采样，会采到巨大的尖峰噪声（开关毛刺），电流波形全是毛刺，FOC完全没法用。用示波器看ADC触发点和PWM的对应关系是调试第一步。</div></div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">五、零电流校准（上电必做）</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            运放和ADC都有<strong>零点偏移(offset)</strong>，零电流时ADC读数不是理想的VCC/2。这个偏移会被当成直流电流，污染整个FOC。校准方法：
+          </p>
+          <div class="code-block"><span class="code-comment">/* 零电流校准：上电时电机不通电，采N次取平均作为偏置 */</span>
+<span class="code-keyword">#define</span> CALIB_SAMPLES  <span class="code-number">1024</span>
+
+<span class="code-keyword">void</span> <span class="code-func">CurrentSense_Calibrate</span>(<span class="code-keyword">void</span>) {
+  <span class="code-comment">// 确保电机断电(PWM占空比为0)</span>
+  <span class="code-func">PWM_SetAllDutyZero</span>();
+  <span class="code-func">Delay_ms</span>(<span class="code-number">100</span>);  <span class="code-comment">// 等电流衰减</span>
+
+  <span class="code-keyword">uint32_t</span> sum_a = <span class="code-number">0</span>, sum_b = <span class="code-number">0</span>;
+  <span class="code-keyword">for</span> (<span class="code-keyword">uint16_t</span> i = <span class="code-number">0</span>; i &lt; CALIB_SAMPLES; i++) {
+    sum_a += <span class="code-func">ADC_Read</span>(CH_CURRENT_A);
+    sum_b += <span class="code-func">ADC_Read</span>(CH_CURRENT_B);
+  }
+  g_offset_a = sum_a / CALIB_SAMPLES;   <span class="code-comment">// 存零点偏置</span>
+  g_offset_b = sum_b / CALIB_SAMPLES;
+}
+
+<span class="code-comment">/* 正式采样时减去偏置 */</span>
+<span class="code-keyword">float</span> <span class="code-func">CurrentSense_Read</span>(<span class="code-keyword">uint8_t</span> ch) {
+  <span class="code-keyword">uint16_t</span> raw = <span class="code-func">ADC_Read</span>(ch);
+  <span class="code-keyword">uint16_t</span> offset = (ch == CH_CURRENT_A) ? g_offset_a : g_offset_b;
+  <span class="code-keyword">int32_t</span> signed_raw = (<span class="code-keyword">int32_t</span>)raw - offset;  <span class="code-comment">// 去偏置，可正可负</span>
+  <span class="code-keyword">return</span> (<span class="code-keyword">float</span>)signed_raw * ADC_TO_AMP;     <span class="code-comment">// 转安培</span>
+}</div>
+          <div class="info-box warning"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg><div><strong>温度漂移</strong>：offset会随温度变化。精密场合需<strong>周期性重新校准</strong>（如电机静止时），或用温补运放。否则长时间运行后零点漂移会让电流读数带直流分量。</div></div>
         `,
       },
     ],
@@ -3165,6 +3486,69 @@ Servo_t joint_base, joint_arm, joint_hand;
           </div>
         `
       },
+      {
+        title: '国产 vs 进口品牌对比与选型避坑',
+        icon: '🏭',
+        desc: '主流电机/驱动器品牌对比、产业链格局、选型避坑经验',
+        tags: ['选型', '行业'],
+        content: `
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-4">选电机和驱动器时，品牌选择直接影响性能、价格和售后。下面按品类梳理主流品牌格局和实战避坑经验。</p>
+
+          <h4 class="font-medium mt-4 mb-2">伺服电机及驱动器（工业级）</h4>
+          <div class="overflow-x-auto mb-3"><table class="compare-table">
+            <thead><tr><th>阵营</th><th>代表品牌</th><th>价位(400W)</th><th>特点</th></tr></thead>
+            <tbody>
+              <tr><td class="font-medium">日系高端</td><td>安川、松下、三菱</td><td>3000~6000元</td><td>精度极高、稳定性强、调试软件完善</td></tr>
+              <tr><td class="font-medium">欧系</td><td>西门子、倍福、伦茨</td><td>4000~8000元</td><td>总线生态(EtherCAT)强、适合产线集成</td></tr>
+              <tr><td class="font-medium">台系</td><td>台达、东元</td><td>2000~3500元</td><td>性价比高、中文文档好</td></tr>
+              <tr><td class="font-medium">国产主流</td><td>汇川、埃斯顿、禾川</td><td>1200~2500元</td><td>性价比极高、国产替代主力、售后快</td></tr>
+              <tr><td class="font-medium">国产入门</td><td>步科、德马克、鸣志</td><td>600~1500元</td><td>DIY/小型设备够用，参数手册可能粗糙</td></tr>
+            </tbody>
+          </table></div>
+
+          <h4 class="font-medium mt-4 mb-2">步进电机及驱动（DIY/小型设备）</h4>
+          <div class="overflow-x-auto mb-3"><table class="compare-table">
+            <thead><tr><th>品类</th><th>代表品牌</th><th>特点</th></tr></thead>
+            <tbody>
+              <tr><td class="font-medium">步进电机</td><td>雷赛、鸣志、美莱特</td><td>国产质量已成熟，NEMA17(42)约30~80元</td></tr>
+              <tr><td class="font-medium">步进驱动</td><td>TMC2209/5160(德纳普)、雷赛DM系列</td><td>TMC系列静音+细分好；雷赛稳定可靠</td></tr>
+              <tr><td class="font-medium">闭环步进</td><td>鸣志、雷赛闭环系列</td><td>加编码器防丢步，介于步进和伺服之间</td></tr>
+            </tbody>
+          </table></div>
+
+          <h4 class="font-medium mt-4 mb-2">无刷电机及ESC（航模/机器人）</h4>
+          <div class="overflow-x-auto mb-3"><table class="compare-table">
+            <thead><tr><th>品类</th><th>代表品牌</th><th>适用</th></tr></thead>
+            <tbody>
+              <tr><td class="font-medium">云台/机械臂BLDC</td><td>GBM、Buke、ODrive官方</td><td>低KV大扭矩，配SimpleFOC/ODrive</td></tr>
+              <tr><td class="font-medium">穿越机电机</td><td>T-Motor、iFlight、HGLRC</td><td>高KV高转速，配Betaflight ESC</td></tr>
+              <tr><td class="font-medium">开源驱动器</td><td>ODrive、VESC、SimpleFOC、DengFOC</td><td>学习/原型首选，文档社区完善</td></tr>
+            </tbody>
+          </table></div>
+
+          <h4 class="font-medium mt-4 mb-2">选型避坑十条（实战经验）</h4>
+          <div class="info-box warning"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg><div>
+            <strong>① 标称参数水分</strong>：部分国产小厂参数虚标（如扭矩标的是峰值而非额定），要求卖家提供<strong>额定工况下的扭矩-转速曲线</strong>。<br>
+            <strong>② 编码器分辨率陷阱</strong>：伺服标"17位编码器"可能指增量而非绝对，绝对比增量贵30%+，机械臂必须绝对。<br>
+            <strong>③ 驱动器兼容性</strong>：国产伺服的CANopen实现可能与标准有偏差，跨品牌混用前先问技术支持。<br>
+            <strong>④ 步进电机标称电流</strong>：是相电流，不是总线电流。两相串联总电流 = 相电流，并联 = 2×相电流。<br>
+            <strong>⑤ KV值不等于速度</strong>：同KV电机，电压不同转速差很多。比的是"每伏空载转速"，实际带载转速更低。<br>
+            <strong>⑥ 散热被忽略</strong>：步进电机静止时满电流发热大，连续工作需配散热片或选<strong>空闲降流型驱动</strong>。<br>
+            <strong>⑦ 电源功率余量</strong>：驱动器瞬间电流(加速/堵转)可达额定的3~5倍，电源要按2倍额定功率选。<br>
+            <strong>⑧ 线缆质量</strong>：编码器线、霍尔线要<strong>双绞屏蔽</strong>，劣质线在电机旁会被干扰导致乱跳。<br>
+            <strong>⑨ 售后与文档</strong>：选有<strong>中文手册+技术支持QQ/微信群</strong>的品牌，出问题能找到人。<br>
+            <strong>⑩ 先买样品再批量</strong>：任何新品牌先买1~2个样品实测（扭矩、温升、精度），达标再批量采购。
+          </div></div>
+
+          <h4 class="font-medium mt-4 mb-2">产业链格局（电机控制相关）</h4>
+          <div class="step-list">
+            <div class="step-item"><div><strong>上游芯片</strong>：MOS管(英飞凌/安森美/士兰微)、MCU(ST/GD/兆易)、电流检测运放(TI INA系列)、驱动IC(IR/TI)。国产替代在加速。</div></div>
+            <div class="step-item"><div><strong>中游模组</strong>：电机厂(汇川/鸣志/雷赛)、驱动器厂、编码器厂(多摩川/海德汉/国产瑞普)。</div></div>
+            <div class="step-item"><div><strong>下游集成</strong>：机器人(埃斯顿/新松)、数控(大连机床/北京精雕)、新能源(汇川在电动车电控份额很高)。</div></div>
+          </div>
+          <div class="info-box tip mt-3"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>国产替代趋势</strong>：伺服领域汇川/埃斯顿已能替代安川/松下80%场景，价格是进口的一半。BLDC驱动ODrive/VESC开源生态让DIY门槛大降。学习阶段建议<strong>用开源(ODrive/SimpleFOC)+国产电机</strong>，成本最低且社区支持好。</div></div>
+        `
+      },
     ],
   },
 
@@ -3409,6 +3793,18 @@ const QuizData = {
     { question: '伺服电机与步进电机最本质的区别是？', options: ['伺服更贵', '伺服有编码器反馈构成闭环，步进通常开环', '伺服不能定位', '伺服功率更大'], answer: 1, explanation: '伺服电机自带编码器实时反馈位置，驱动器根据偏差闭环修正，所以不会"丢步"，高速高负载下仍保持精度。步进电机通常开环（发多少脉冲假设走多少），过载会丢步。代价是伺服系统更贵更复杂。' },
     { question: '伺服系统的三大组成是？', options: ['电机+减速器+负载', '伺服电机+编码器+伺服驱动器', '电源+MCU+电机', '电机+传感器+显示器'], answer: 1, explanation: '伺服电机（执行）+ 编码器（位置反馈）+ 伺服驱动器（运行PID/FOC算法、驱动电机）。三者构成闭环。MCU通常通过脉冲/CANopen给驱动器下命令，不直接驱动电机。' },
     { question: '伺服的三种基本控制模式是？', options: ['手动/自动/远程', '位置模式(PT)、速度模式(PV)、转矩模式(PQ)', '正向/反向/停止', '高压/低压/断电'], answer: 1, explanation: 'PT(位置)精确控制走到哪；PV(速度)精确控制转多快（传送带、卷绕）；PQ(转矩)精确控制输出多大扭矩（拧紧、压延）。机械臂关节通常用位置模式CSP(周期同步位置)。' },
+  ],
+  'engineering-validation': [
+    { question: '串级PID调试时，为什么要从内环(电流环)开始调？', options: ['内环最简单', '内环是外环的"执行器"，内环稳定后外环才有可靠基础', '内环参数最少', '外环无法单独测试'], answer: 1, explanation: '串级控制中内环输出驱动外环。若内环(电流环)未调好，速度环看到的"执行器"就不可靠，调速度环等于在错误基础上调。所以必须由内到外：电流环→速度环→位置环，每环达标后再调外环。' },
+    { question: '评判PID阶跃响应好坏的三个客观指标是？', options: ['电压、电流、功率', '上升时间、超调量、稳态误差', '频率、相位、幅值', '温度、噪音、振动'], answer: 1, explanation: '上升时间(响应快慢)、超调量(稳定性)、稳态误差(精度)。这三个数字量化了"调好了没"——比"看电机转得顺不顺"客观100倍。目标是上升快、超调小、稳态误差≈0。' },
+    { question: '想减小跟随误差又不想引发超调，应该用什么方法？', options: ['加大Kp', '加大Kd', '加前馈补偿', '降低目标速度'], answer: 2, explanation: '加大Kp会提升响应但也增加超调风险。前馈把已知指令直接叠加到输出，不进入反馈回路，不影响稳定性——这是专业伺服跟踪精度高的关键。速度前馈、加速度前馈、重力前馈是常见类型。' },
+    { question: '调试S曲线参数时，判定好坏的最客观标准是？', options: ['电机声音是否平稳', '手动触摸感觉振动', '编码器读实际位置，与目标位置对比看误差', '电机温度是否升高'], answer: 2, explanation: '主观感觉只能发现严重问题。正确做法：输出目标位置和实际位置(编码器)的曲线，看实际是否紧贴目标、停止误差≈0、加减速无冲击。再配合重复定位精度(同目标走10次的离散度)全面评估。' },
+    { question: '为什么强烈建议先在仿真里验证算法再上硬件？', options: ['仿真更准确', '仿真里能零成本随意改参数试错，隔离算法问题与硬件问题', '硬件测试不安全', '仿真不需要写代码'], answer: 1, explanation: '仿真隔离了变量——算法逻辑对不对，在仿真里一目了然，不受硬件噪声、接线、电源等干扰。直接上硬件，问题混在一起(算法错？硬件坏？参数差？)，排查极难。V模型要求先仿真验证算法。' },
+  ],
+  'current-sense': [
+    { question: 'FOC三相电流采样最常用的方案是？', options: ['霍尔电流传感器ACS712', '下桥臂shunt电阻+专用电流检测运放(如INA240)', '测电源电压反推', '测电机温度反推'], answer: 1, explanation: '下桥臂采样：每个下桥MOS源极串一个mΩ级精密电阻，电流流过产生压降，经INA240放大送ADC。运放共地接法简单、成本低、带宽够，是FOC的主流方案。ACS712适合过流保护不适合精密FOC。' },
+    { question: '下桥臂采样时，为什么必须在PWM周期中点采样？', options: ['中点电压最稳定', '此时下桥MOS导通电流稳定，避开开关瞬间的噪声尖峰', '中点ADC精度高', '减少CPU占用'], answer: 1, explanation: '下桥MOS导通期间电流才流过shunt，PWM开关瞬间会产生巨大共模跳变和毛刺。在周期中点采样既保证MOS导通(有电流)，又避开开关边沿(无噪声)。STM32用TIM TRGO触发ADC实现自动同步。' },
+    { question: '电流采样系统上电后必须做的第一步是？', options: ['直接启动电机', '零电流校准——电机断电采多次取平均作为ADC偏置', '调PID参数', '测PWM频率'], answer: 1, explanation: '运放和ADC有零点偏移(offset)，零电流时读数不是理想VCC/2。这个偏移若不去除，会被当成直流电流污染整个FOC。校准：电机断电→采1024次取平均→存为offset→正式采样时减去。温度漂移大时需周期重校。' },
   ],
 };
 
