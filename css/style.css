@@ -103,6 +103,17 @@
 .home-card:hover .card-icon { transform: scale(1.1); }
 .home-card .card-icon { width: 3rem; height: 3rem; border-radius: 0.75rem; display: flex; align-items: center; justify-content: center; margin-bottom: 1rem; font-size: 1.5rem; transition: transform 0.25s; }
 
+/* ====== 首页介绍区 ====== */
+.home-intro { margin-bottom: 0.5rem; }
+.home-feature-card {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: 0.75rem;
+  padding: 1.25rem; text-align: center; transition: all 0.2s;
+}
+.home-feature-card:hover { border-color: var(--primary); box-shadow: 0 2px 12px rgba(194,136,62,0.08); }
+.home-feature-card .feature-icon { font-size: 2rem; margin-bottom: 0.5rem; }
+.home-feature-card .feature-label { font-weight: 600; font-size: 0.9rem; color: var(--text); margin-bottom: 0.25rem; }
+.home-feature-card .feature-desc { font-size: 0.78rem; color: var(--text-secondary); line-height: 1.5; }
+
 /* ====== 统计卡片计数动画 ====== */
 .stat-number { display: inline-block; font-variant-numeric: tabular-nums; }
 
@@ -399,6 +410,13 @@
 
   /* 回到顶部按钮：缩小 */
   #back-to-top { padding: 0.625rem; bottom: 1rem; right: 1rem; }
+
+  /* 首页介绍feature卡片：手机单列 */
+  .home-feature-card { padding: 1rem; }
+  .home-feature-card .feature-icon { font-size: 1.5rem; }
+  .home-feature-card .feature-label { font-size: 0.85rem; }
+  .home-feature-card .feature-desc { font-size: 0.75rem; }
+  .home-intro p { font-size: 0.95rem; line-height: 1.75; }
 }
 
 /* ====== 响应式：小手机 (≤480px) ====== */

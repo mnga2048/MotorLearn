@@ -170,6 +170,19 @@
     const d = MotorData.home;
     return `<div>
       <div class="page-hero"><h1>${d.title}</h1><p>${d.subtitle}</p></div>
+
+      <!-- 网站介绍 -->
+      <div class="home-intro">
+        <p style="font-size:1.05rem;line-height:1.85;color:var(--text);max-width:50rem;margin-bottom:1.5rem">${d.intro}</p>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
+          ${d.features.map(f => `<div class="home-feature-card">
+            <div class="feature-icon">${f.icon}</div>
+            <div class="feature-label">${f.label}</div>
+            <div class="feature-desc">${f.desc}</div>
+          </div>`).join('')}
+        </div>
+      </div>
+
       <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         ${d.stats.map(s => `<div class="text-center p-4 rounded-xl border" style="background:var(--bg-card);border-color:var(--border)">
           <div class="text-2xl font-bold stat-number" data-target="${s.value}" style="color:var(--primary)">0</div>
