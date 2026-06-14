@@ -90,6 +90,7 @@
         case 'home': html = renderHomePage(); break;
         case 'beginner': html = renderSectionPage(MotorData.beginner); break;
         case 'advanced': html = renderSectionPage(MotorData.advanced); break;
+        case 'robotics': html = renderSectionPage(MotorData.robotics); break;
         case 'industry': html = renderIndustryPage(); break;
         case 'motors': html = renderMotorsPage(); break;
         case 'roadmap': html = renderRoadmapPage(); break;
@@ -157,6 +158,8 @@
     if (found) return { ...found, parent: 'beginner', parentTitle: '入门篇' };
     found = MotorData.advanced?.sections?.find(s => s.id === id);
     if (found) return { ...found, parent: 'advanced', parentTitle: '进阶篇' };
+    found = MotorData.robotics?.sections?.find(s => s.id === id);
+    if (found) return { ...found, parent: 'robotics', parentTitle: '机器人应用' };
     return null;
   }
 

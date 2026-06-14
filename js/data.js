@@ -18,10 +18,13 @@ const MotorData = {
         { id: 'advanced-pid', label: 'PID控制理论' },
         { id: 'advanced-pid-impl', label: 'PID的C语言实现' },
         { id: 'encoder', label: '编码器与位置反馈' },
+        { id: 'bldc-commutation', label: 'BLDC六步换向实现' },
         { id: 'advanced-foc', label: 'FOC磁场定向控制' },
+        { id: 'foc-impl', label: 'FOC的C语言实现' },
         { id: 'advanced-coord', label: '坐标变换' },
         { id: 'advanced-sensorless', label: '无感控制' },
         { id: 'advanced-multiloop', label: '多环控制' },
+        { id: 'servo-control', label: '伺服控制与通信' },
       ]
     },
     {
@@ -32,6 +35,14 @@ const MotorData = {
         { id: 'stepper', label: '步进电机' },
         { id: 'servo', label: '伺服电机' },
         { id: 'hobby-servo', label: '舵机' },
+      ]
+    },
+    {
+      id: 'robotics', label: '机器人应用', icon: 'rocket', badge: '进阶', badgeClass: 'badge-advanced',
+      children: [
+        { id: 'kinematics', label: '运动学入门' },
+        { id: 'trajectory', label: '轨迹规划与多轴协调' },
+        { id: 'mcu-ros', label: 'MCU与Linux/ROS桥接' },
       ]
     },
     { id: 'industry', label: '电机行业', icon: 'briefcase', badge: '行业', badgeClass: 'badge-tool' },
@@ -787,6 +798,194 @@ const MotorData = {
         `,
       },
       {
+        id: 'bldc-commutation',
+        title: 'BLDC六步换向实现',
+        desc: '霍尔读取、换向查表、互补PWM与死区——无刷电机控制的第一步',
+        icon: '🔄',
+        tags: ['核心算法', 'BLDC'],
+        content: `
+          <h3 class="text-lg font-semibold mb-3">为什么无刷电机需要"换向"</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-4">
+            有刷电机靠<strong>机械换向器+电刷</strong>自动切换电流方向，转子转着转着就能持续受力。
+            无刷电机（BLDC）去掉了电刷，必须由<strong>MCU根据转子位置主动切换三相绕组的通电顺序</strong>——这就是"换向"（Commutation）。
+            六步换向（Six-Step / 梯形波控制）是最基础的无刷控制方式，理解了它才能进阶到 FOC。
+          </p>
+
+          <div class="info-box tip mb-6">
+            <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <div><strong>六步换向的本质</strong>：转子每转一圈（电角度360°），按 60° 划分成 6 个区间。每个区间内，<strong>两相通电、一相悬空</strong>，通过 6 种开关组合让转子持续受力旋转。</div>
+          </div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">一、霍尔传感器：告诉MCU转子在哪</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            BLDC 通常内置 3 个霍尔传感器（Ha、Hb、Hc），相位互相错开 120°电角度。3 个霍尔的高低电平组合出 <strong>8 种状态</strong>，其中 6 种有效（对应 6 个换向区间），2 种无效（全 0 或全 1，表示故障）。
+          </p>
+          <div class="overflow-x-auto"><table class="compare-table">
+            <thead><tr><th>Ha Hb Hc</th><th>电角度</th><th>通电相</th><th>电流路径</th></tr></thead>
+            <tbody>
+              <tr><td class="font-mono">1 0 1</td><td>0°</td><td>A→B</td><td>A相进、B相出、C悬空</td></tr>
+              <tr><td class="font-mono">1 0 0</td><td>60°</td><td>A→C</td><td>A相进、C相出、B悬空</td></tr>
+              <tr><td class="font-mono">1 1 0</td><td>120°</td><td>B→C</td><td>B相进、C相出、A悬空</td></tr>
+              <tr><td class="font-mono">0 1 0</td><td>180°</td><td>B→A</td><td>B相进、A相出、C悬空</td></tr>
+              <tr><td class="font-mono">0 1 1</td><td>240°</td><td>C→A</td><td>C相进、A相出、B悬空</td></tr>
+              <tr><td class="font-mono">0 0 1</td><td>300°</td><td>C→B</td><td>C相进、B相出、A悬空</td></tr>
+            </tbody>
+          </table></div>
+          <div class="info-box warning mt-3">
+            <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+            <div><strong>这张表是核心</strong>！不同电机/霍尔安装位置不同，表的顺序可能不一样。实际调试时<strong>必须用示波器抓霍尔波形+相电压</strong>，对照确认你这张表是否正确，否则电机会反转、抖动甚至堵转。</div>
+          </div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">二、读取霍尔状态</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            霍尔信号接 MCU 的 3 个 GPIO（或定时器输入捕获引脚）。两种读取方式：
+          </p>
+          <div class="code-block"><span class="code-comment">/* 方式1：主循环轮询读取（简单，适合低速）*/</span>
+<span class="code-keyword">#define</span> HALL_A_PIN  GPIO_PIN_0
+<span class="code-keyword">#define</span> HALL_B_PIN  GPIO_PIN_1
+<span class="code-keyword">#define</span> HALL_C_PIN  GPIO_PIN_2
+<span class="code-keyword">#define</span> HALL_PORT  GPIOA
+
+<span class="code-comment">/* 读3个霍尔引脚，拼成 0bHHH 的值（0~7）*/</span>
+<span class="code-keyword">uint8_t</span> <span class="code-func">Hall_Read</span>(<span class="code-keyword">void</span>) {
+  <span class="code-keyword">uint8_t</span> h = <span class="code-number">0</span>;
+  <span class="code-keyword">if</span> (HAL_GPIO_ReadPin(HALL_PORT, HALL_A_PIN)) h |= <span class="code-number">0x04</span>;  <span class="code-comment">// bit2 = A</span>
+  <span class="code-keyword">if</span> (HAL_GPIO_ReadPin(HALL_PORT, HALL_B_PIN)) h |= <span class="code-number">0x02</span>;  <span class="code-comment">// bit1 = B</span>
+  <span class="code-keyword">if</span> (HAL_GPIO_ReadPin(HALL_PORT, HALL_C_PIN)) h |= <span class="code-number">0x01</span>;  <span class="code-comment">// bit0 = C</span>
+  <span class="code-keyword">return</span> h;   <span class="code-comment">// 返回 0bABC，范围 0~7</span>
+}
+
+<span class="code-comment">/* 方式2：外部中断（高效，霍尔每次跳变触发换向）
+ * 把3个霍尔引脚配置为 EXTI 上升/下降沿触发
+ * 任何一根霍尔变化 → 立即进中断 → 读取并换向 */</span>
+<span class="code-keyword">void</span> <span class="code-func">HAL_GPIO_EXTI_Callback</span>(<span class="code-keyword">uint16_t</span> pin) {
+  <span class="code-keyword">if</span> (pin == HALL_A_PIN || pin == HALL_B_PIN || pin == HALL_C_PIN) {
+    <span class="code-func">BLDC_Commutate</span>();    <span class="code-comment">// 霍尔变了，立即换向</span>
+  }
+}</div>
+
+          <div class="info-box info mt-3">
+            <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <div>STM32 还有更高级的<strong>定时器霍尔接口模式</strong>（TIMx_SMCR.TS=Hall Sensor），把3个霍尔接到 TI1~TI3，硬件自动异或后触发中断，响应最快。本质和 EXTI 一样，只是硬件加速。</div>
+          </div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">三、换向查表（核心代码）</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            把霍尔状态 → 三相桥臂开关状态的映射做成<strong>查找表</strong>，换向就是查一次表+改定时器输出。三相桥每相由上桥（H）和下桥（L）两个 MOS 管组成，"ON"=导通、"OFF"=关断、"PWM"=脉宽调制（调速）。
+          </p>
+          <div class="code-block"><span class="code-comment">/* 每相桥臂的三种状态：OFF（悬空）、PWM_H（上桥PWM下桥关）、PWM_L（下桥PWM上桥关）
+ * 用 2bit 表示： 00=OFF, 01=下桥PWM, 10=上桥PWM */</span>
+<span class="code-keyword">typedef enum</span> { PHASE_OFF = <span class="code-number">0</span>, PHASE_LOW = <span class="code-number">1</span>, PHASE_HIGH = <span class="code-number">2</span> } PhaseState;
+
+<span class="code-comment">/* 换向表：8种霍尔状态 → {A相, B相, C相} 的桥臂状态
+ * 索引 0~7 对应 HaHbHc 的 0bABC 值
+ * 索引 0(000) 和 7(111) 是非法状态，全 OFF */</span>
+<span class="code-keyword">static const</span> PhaseState COMMUTATION_TABLE[<span class="code-number">8</span>][<span class="code-number">3</span>] = {
+  <span class="code-comment">/*  Ha Hb Hc    A        B        C     */</span>
+  { PHASE_OFF, PHASE_OFF, PHASE_OFF }, <span class="code-comment">// 000 非法</span>
+  { PHASE_LOW,  PHASE_HIGH, PHASE_OFF }, <span class="code-comment">// 001 C→B</span>
+  { PHASE_HIGH, PHASE_LOW,  PHASE_OFF }, <span class="code-comment">// 010 B→A</span>
+  { PHASE_OFF,  PHASE_LOW,  PHASE_HIGH}, <span class="code-comment">// 011 B→C... 调试时按实际修正</span>
+  { PHASE_LOW,  PHASE_OFF, PHASE_HIGH }, <span class="code-comment">// 100 A→C</span>
+  { PHASE_HIGH, PHASE_OFF, PHASE_LOW  }, <span class="code-comment">// 101 A→B</span>
+  { PHASE_OFF,  PHASE_HIGH, PHASE_LOW }, <span class="code-comment">// 110 C→A</span>
+  { PHASE_OFF, PHASE_OFF, PHASE_OFF }, <span class="code-comment">// 111 非法</span>
+};
+
+<span class="code-comment">/**
+ * 执行换向：读霍尔 → 查表 → 配置三相PWM输出
+ * 在霍尔变化的中断里调用，或主循环周期性调用
+ */</span>
+<span class="code-keyword">void</span> <span class="code-func">BLDC_Commutate</span>(<span class="code-keyword">void</span>) {
+  <span class="code-keyword">uint8_t</span> hall = <span class="code-func">Hall_Read</span>();              <span class="code-comment">// 0~7</span>
+  <span class="code-keyword">const</span> PhaseState *phase = COMMUTATION_TABLE[hall];
+
+  <span class="code-comment">// 根据查表结果配置每一相</span>
+  <span class="code-keyword">for</span> (<span class="code-keyword">int</span> i = <span class="code-number">0</span>; i &lt; <span class="code-number">3</span>; i++) {
+    <span class="code-keyword">switch</span> (phase[i]) {
+      <span class="code-keyword">case</span> PHASE_HIGH: <span class="code-comment">// 上桥PWM，下桥关</span>
+        <span class="code-func">SetPhasePWM</span>(i, g_duty);     <span class="code-comment">// 输出PWM（占空比决定力矩）*/</span>
+        <span class="code-keyword">break</span>;
+      <span class="code-keyword">case</span> PHASE_LOW:  <span class="code-comment">// 下桥常通（或也PWM）</span>
+        <span class="code-func">SetPhaseLow</span>(i);
+        <span class="code-keyword">break</span>;
+      <span class="code-keyword">default</span>:           <span class="code-comment">// OFF 悬空</span>
+        <span class="code-func">SetPhaseFloat</span>(i);
+        <span class="code-keyword">break</span>;
+    }
+  }
+}</div>
+
+          <div class="info-box warning mt-3">
+            <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+            <div><strong>这张表几乎肯定要改</strong>。不同电机的霍尔安装角度、相序（UVW vs UWV）不同，照搬代码电机可能反转或不转。调试方法见下节——<strong>先用手转电机+抓霍尔，再对照示波器波形确认表的正确性</strong>。</div>
+          </div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">四、互补PWM与死区（必须懂）</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            三相桥每相的上下两个 MOS 管<strong>绝不能同时导通</strong>，否则电源直接短路（"直通"，瞬间烧管）。用<strong>互补PWM</strong>+<strong>死区时间</strong>解决：上桥开则下桥关，且切换的瞬间两者都关一小段时间（死区，约 500ns~2μs）。
+          </p>
+          <div class="code-block"><span class="code-comment">/* STM32 高级定时器（TIM1/TIM8）支持硬件互补PWM + 死区
+ * 配置一次即可，硬件自动插入死区，无需软件干预 */</span>
+
+<span class="code-comment">// 关键寄存器：TIM1->BDTR（刹车和死区控制寄存器）</span>
+<span class="code-comment">// DTG[7:0] 位编码死区时间，举例（72MHz主频下）：
+//   DTG=0x80 → 死区约 1.78us  （中等功率MOS，典型值）
+//   DTG=0xA0 → 死区约 3.55us  （大功率/慢速MOS，更保守）
+//   DTG=0x40 → 死区约 0.44us  （小功率/快速MOS）*/</span>
+
+<span class="code-keyword">void</span> <span class="code-func">BLDC_PWM_Init</span>(<span class="code-keyword">void</span>) {
+  TIM_HandleTypeDef *htim = &amp;htim1;     <span class="code-comment">// 高级定时器</span>
+  htim->Instance->BDTR |= <span class="code-number">0x80</span>;          <span class="code-comment">// 设置死区约1.78us</span>
+  htim->Instance->BDTR |= TIM_BDTR_MOE;  <span class="code-comment">// 主输出使能（不开就无PWM）*/</span>
+
+  <span class="code-comment">// 启动3对互补PWM（CH1/CH1N, CH2/CH2N, CH3/CH3N）*/</span>
+  HAL_TIM_PWM_Start(htim, TIM_CHANNEL_1);
+  HAL_TIMEx_PWMN_Start(htim, TIM_CHANNEL_1);
+  HAL_TIM_PWM_Start(htim, TIM_CHANNEL_2);
+  HAL_TIMEx_PWMN_Start(htim, TIM_CHANNEL_2);
+  HAL_TIM_PWM_Start(htim, TIM_CHANNEL_3);
+  HAL_TIMEx_PWMN_Start(htim, TIM_CHANNEL_3);
+}
+
+<span class="code-comment">/* 调速 = 改变占空比。g_duty: 0~ARR */</span>
+<span class="code-keyword">void</span> <span class="code-func">BLDC_SetDuty</span>(<span class="code-keyword">uint16_t</span> duty) {
+  g_duty = duty;
+  <span class="code-comment">// 实际CCR在换向时按查表结果更新到对应相 */</span>
+}</div>
+
+          <div class="info-box warning mt-3">
+            <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+            <div><strong>死区时间必须根据你的MOS管调整</strong>：太小→开关未完全关断就开对管→直通烧管；太大→低次谐波多、力矩脉动大。经验：先设保守值（2μs），用示波器看实际开关波形，再缩小到不直通的最小值。</div>
+          </div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">五、完整运行流程</h3>
+          <div class="step-list">
+            <div class="step-item"><div><strong>初始化</strong>：配置三相PWM（互补+死区）、霍尔GPIO（或中断）、ADC（测电流保护）。</div></div>
+            <div class="step-item"><div><strong>启动预定位</strong>：强制给某两相通电，把转子"拉"到已知位置（六步换向启动的难点，因为零速时霍尔不动）。</div></div>
+            <div class="step-item"><div><strong>正常运行</strong>：电机转起来后，霍尔每次跳变 → 触发换向 → 查表更新PWM。占空比=速度/力矩控制。</div></div>
+            <div class="step-item"><div><strong>闭环（可选）</strong>：加测速（编码器或霍尔估算）+ PI 速度环，实现稳速。</div></div>
+          </div>
+
+          <h4 class="font-medium mt-6 mb-2">六步换向的调试要点</h4>
+          <div class="overflow-x-auto"><table class="compare-table">
+            <thead><tr><th>现象</th><th>原因</th><th>排查</th></tr></thead>
+            <tbody>
+              <tr><td class="font-medium">电机不转、抖动</td><td>换向表错误、相序接反</td><td>用示波器抓3路霍尔+相电压，对照确认表</td></tr>
+              <tr><td class="font-medium">反转</td><td>任意两相（或两霍尔）互换</td><td>交换换向表里两列，或对调两根相线</td></tr>
+              <tr><td class="font-medium">堵转电流大、发烫</td><td>死区太小直通，或换向提前/滞后</td><td>示波器看死区波形；调换向时机</td></tr>
+              <tr><td class="font-medium">高速丢步、异响</td><td>霍尔响应慢、换向中断延迟</td><td>用硬件定时器霍尔接口；降低中断里工作量</td></tr>
+              <tr><td class="font-medium">启动失败</td><td>预定位不准</td><td>增大启动电流；用"三段式启动"（预定位→强拖→切闭环）</td></tr>
+            </tbody>
+          </table></div>
+
+          <div class="info-box tip mt-3">
+            <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <div><strong>六步换向 vs FOC</strong>：六步换向简单、力矩有脉动（梯形波，每60°跳变一次，电机有"哒哒"感）；FOC 是正弦波，力矩平滑、效率高，但算法复杂得多。<strong>建议学习路线</strong>：先用六步把电机转起来、搞懂换向本质，再进阶 FOC。</div>
+          </div>
+        `,
+      },
+      {
         id: 'advanced-foc',
         title: 'FOC磁场定向控制',
         desc: '无刷电机和伺服电机的核心控制算法',
@@ -834,6 +1033,194 @@ const MotorData = {
           <div class="info-box tip mt-4">
             <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
             <div><strong>SVPWM vs SPWM</strong>：SVPWM（空间矢量PWM）比传统SPWM的直流母线电压利用率高约15.5%，是FOC控制的标准调制方式。</div>
+          </div>
+        `,
+      },
+      {
+        id: 'foc-impl',
+        title: 'FOC的C语言实现',
+        desc: 'Clarke/Park变换、SVPWM、相电流ADC采样的可运行C代码',
+        icon: '🌀',
+        tags: ['核心算法', 'FOC'],
+        content: `
+          <h3 class="text-lg font-semibold mb-3">把FOC公式变成可跑的C代码</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-4">
+            上一篇讲了 FOC 的理论（Clarke→Park→PI→反Park→SVPWM）。本节给出每一步的 C 函数实现，组合起来就是一个最小可运行的 FOC 电流环。代码用 <code>float</code>，Cortex-M4F/M7 可直接跑；M3 需用定点版或 CMSIS-DSP。
+          </p>
+
+          <div class="info-box tip mb-6">
+            <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <div>FOC 的<strong>计算量集中在电流环</strong>，每个 PWM 周期（如 10kHz）跑一遍完整流程。函数都用 <code>inline</code> 和 <code>float</code>，避免除法和三角函数库调用（用查表或近似）。</div>
+          </div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">一、相电流采样（FOC的输入）</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            FOC 需要三相电流 Ia、Ib、Ic。实际只需采<strong>两相</strong>（Ia、Ib），第三相由基尔霍夫定律算出：<code>Ic = -(Ia+Ib)</code>。<strong>采样时机极其关键</strong>：必须在 PWM 下桥臂导通的中点采样（此时电流稳定），否则采到的是开关噪声。
+          </p>
+          <div class="code-block"><span class="code-comment">/* ADC 由 PWM 中心事件触发（TIM1 TRGO → ADC 注入组）
+ * 在每个PWM周期中点采样两相电流 */</span>
+<span class="code-keyword">typedef struct</span> {
+  <span class="code-keyword">float</span> ia, ib;          <span class="code-comment">// 实采两相电流(A)</span>
+  <span class="code-keyword">float</span> offset_a, offset_b;  <span class="code-comment">// 零电流偏置(上电校准)</span>
+} CurrentSense_t;
+
+<span class="code-comment">/**
+ * 从ADC原始值换算实际电流
+ * @param raw   ADC读数(0~4095, 12位)
+ * @param vref  参考电压(V)，通常3.3
+ * @param gain  电流放大电路增益(A/V)，由采样电阻和运放决定
+ * @param offset 零电流时的ADC偏置(上电短接电机测得)
+ */</span>
+<span class="code-keyword">static inline float</span> <span class="code-func">ADC_ToCurrent</span>(<span class="code-keyword">uint16_t</span> raw, <span class="code-keyword">float</span> vref,
+                                  <span class="code-keyword">float</span> gain, <span class="code-keyword">float</span> offset) {
+  <span class="code-keyword">float</span> v = (<span class="code-keyword">float</span>)raw * vref / <span class="code-number">4095.0f</span>;   <span class="code-comment">// ADC → 电压</span>
+  <span class="code-keyword">return</span> (v - offset) * gain;                  <span class="code-comment">// 电压 → 电流(去偏置)</span>
+}
+
+<span class="code-comment">/* 读取三相电流(只需两相) */</span>
+<span class="code-keyword">void</span> <span class="code-func">FOC_ReadCurrents</span>(CurrentSense_t *cs,
+                       <span class="code-keyword">uint16_t</span> raw_a, <span class="code-keyword">uint16_t</span> raw_b) {
+  cs->ia = <span class="code-func">ADC_ToCurrent</span>(raw_a, <span class="code-number">3.3f</span>, <span class="code-number">20.0f</span>, cs->offset_a);
+  cs->ib = <span class="code-func">ADC_ToCurrent</span>(raw_b, <span class="code-number">3.3f</span>, <span class="code-number">20.0f</span>, cs->offset_b);
+}</div>
+
+          <div class="info-box warning mt-3">
+            <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+            <div><strong>零电流偏置校准是必做步骤</strong>：上电后先把电机三相短接（无电流），读1000次ADC取平均，存为 offset。否则偏置漂移会让电流读数带直流分量，FOC 永远调不准。</div>
+          </div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">二、Clarke变换（三相→两相静止）</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            把三相电流 (Ia, Ib, Ic) 投影到两相静止坐标系 (Iα, Iβ)，减少一维：
+          </p>
+          <div class="formula-block">
+            $I_\\alpha = I_a, \\quad I_\\beta = \\frac{1}{\\sqrt{3}}(I_a + 2I_b)$
+          </div>
+          <div class="code-block"><span class="code-comment">/* Clarke变换：三相 → 两相静止 αβ
+ * 输入: ia, ib (ic 由 ia+ib+ic=0 隐含)
+ * 输出: ialpha, ibeta */</span>
+<span class="code-keyword">static inline void</span> <span class="code-func">Clarke</span>(<span class="code-keyword">float</span> ia, <span class="code-keyword">float</span> ib,
+                         <span class="code-keyword">float</span> *ialpha, <span class="code-keyword">float</span> *ibeta) {
+  <span class="code-keyword">const float</span> ONE_BY_SQRT3 = <span class="code-number">0.57735026919f</span>;
+  *ialpha = ia;
+  *ibeta  = (ia + <span class="code-number">2.0f</span> * ib) * ONE_BY_SQRT3;
+}</div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">三、Park变换（静止→旋转dq）</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            把 (Iα, Iβ) 旋转到跟随转子的坐标系 (Id, Iq)。关键是电角度 θ（来自编码器或霍尔）：
+          </p>
+          <div class="formula-block">
+            $I_d = I_\\alpha \\cos\\theta + I_\\beta \\sin\\theta, \\quad I_q = -I_\\alpha \\sin\\theta + I_\\beta \\cos\\theta$
+          </div>
+          <div class="code-block"><span class="code-comment">/* Park变换：两相静止 αβ → 两相旋转 dq
+ * sin/cos 提前用查表或硬件算，避免每次调用 math.h */</span>
+<span class="code-keyword">static inline void</span> <span class="code-func">Park</span>(<span class="code-keyword">float</span> ialpha, <span class="code-keyword">float</span> ibeta,
+                       <span class="code-keyword">float</span> sin_theta, <span class="code-keyword">float</span> cos_theta,
+                       <span class="code-keyword">float</span> *id, <span class="code-keyword">float</span> *iq) {
+  *id = ialpha * cos_theta + ibeta * sin_theta;
+  *iq = -ialpha * sin_theta + ibeta * cos_theta;
+}</div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">四、PI电流环（控制Id、Iq）</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            通常设 <code>Id_ref = 0</code>（不产生励磁，最大转矩/电流比），<code>Iq_ref</code> = 期望力矩。两个独立 PI 控制器分别跟踪。直接复用上一篇的 PID 代码即可：
+          </p>
+          <div class="code-block"><span class="code-comment">/* d轴和q轴各一个PI控制器(复用PID_t，Kd=0) */</span>
+<span class="code-keyword">static</span> PID_t pid_id, pid_iq;
+
+<span class="code-comment">/* 电流环：输入参考值和实测值，输出控制电压 Vd、Vq */</span>
+<span class="code-keyword">void</span> <span class="code-func">FOC_CurrentLoop</span>(<span class="code-keyword">float</span> id_ref, <span class="code-keyword">float</span> iq_ref,
+                       <span class="code-keyword">float</span> id_meas, <span class="code-keyword">float</span> iq_meas,
+                       <span class="code-keyword">float</span> *vd, <span class="code-keyword">float</span> *vq) {
+  *vd = <span class="code-func">PID_Position_Update</span>(&amp;pid_id, id_ref, id_meas);
+  *vq = <span class="code-func">PID_Position_Update</span>(&amp;pid_iq, iq_ref, iq_meas);
+  <span class="code-comment">// 注意：实际要加抗饱和，见 PID 实现篇</span>
+}</div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">五、反Park变换（dq→αβ）</h3>
+          <div class="code-block"><span class="code-comment">/* 反Park：把控制电压从 dq 旋回 αβ 坐标系
+ * 用于下一步 SVPWM 生成三相PWM */</span>
+<span class="code-keyword">static inline void</span> <span class="code-func">InvPark</span>(<span class="code-keyword">float</span> vd, <span class="code-keyword">float</span> vq,
+                           <span class="code-keyword">float</span> sin_theta, <span class="code-keyword">float</span> cos_theta,
+                           <span class="code-keyword">float</span> *valpha, <span class="code-keyword">float</span> *vbeta) {
+  *valpha = vd * cos_theta - vq * sin_theta;
+  *vbeta  = vd * sin_theta + vq * cos_theta;
+}</div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">六、SVPWM（αβ电压→三相PWM占空比）</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            SVPWM 的完整实现要算扇区、T1/T2 时间，比较复杂。工程上常用<strong>简化版</strong>（基于 αβ 直接算占空比），精度够用、代码短：
+          </p>
+          <div class="code-block"><span class="code-comment">/* SVPWM 简化实现（又称"反Clarke + 注入中点"法）
+ * 输入: valpha, vbeta, Vbus(母线电压), pwm_period(PWM周期计数)
+ * 输出: 三相占空比 ccr_a, ccr_b, ccr_c (0~pwm_period) */</span>
+<span class="code-keyword">static inline void</span> <span class="code-func">SVPWM</span>(<span class="code-keyword">float</span> valpha, <span class="code-keyword">float</span> vbeta,
+                          <span class="code-keyword">float</span> vbus, <span class="code-keyword">uint16_t</span> pwm_period,
+                          <span class="code-keyword">uint16_t</span> *ccr_a, <span class="code-keyword">uint16_t</span> *ccr_b, <span class="code-keyword">uint16_t</span> *ccr_c) {
+  <span class="code-keyword">const float</span> ONE_BY_SQRT3 = <span class="code-number">0.57735026919f</span>;
+  <span class="code-keyword">const float</span> TWO_BY_SQRT3 = <span class="code-number">1.15470053838f</span>;
+
+  <span class="code-comment">// 1. αβ → 三相电压归一化(-1~1)</span>
+  <span class="code-keyword">float</span> va = valpha;
+  <span class="code-keyword">float</span> vb = -<span class="code-number">0.5f</span> * valpha + vbeta * ONE_BY_SQRT3;
+  <span class="code-keyword">float</span> vc = -<span class="code-number">0.5f</span> * valpha - vbeta * ONE_BY_SQRT3;
+
+  <span class="code-comment">// 2. 注入零序分量(中点)，使三相占空比都落入 0~period 范围</span>
+  <span class="code-keyword">float</span> vmin = va; <span class="code-keyword">if</span> (vb &lt; vmin) vmin = vb; <span class="code-keyword">if</span> (vc &lt; vmin) vmin = vc;
+  va -= vmin; vb -= vmin; vc -= vmin;   <span class="code-comment">// 平移到 ≥0</span>
+
+  <span class="comment" style="color:#64748b">// 3. 限幅并转成CCR值</span>
+  <span class="code-keyword">float</span> vmax = va; <span class="code-keyword">if</span> (vb &gt; vmax) vmax = vb; <span class="code-keyword">if</span> (vc &gt; vmax) vmax = vc;
+  <span class="code-keyword">float</span> scale = (vmax &gt; <span class="code-number">1.0f</span>) ? (<span class="code-number">1.0f</span> / vmax) : <span class="code-number">1.0f</span>;
+
+  *ccr_a = (<span class="code-keyword">uint16_t</span>)(va * scale * pwm_period);
+  *ccr_b = (<span class="code-keyword">uint16_t</span>)(vb * scale * pwm_period);
+  *ccr_c = (<span class="code-keyword">uint16_t</span>)(vc * scale * pwm_period);
+}</div>
+
+          <div class="info-box info mt-3">
+            <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <div>完整 SVPWM 要算 6 个扇区、相邻矢量作用时间 T1/T2、零矢量分配。简化版用"反Clarke + 中点注入"达到 ~87% 的电压利用率（接近完整 SVPWM 的 90.6%），代码量少一半，DIY FOC 首选。</div>
+          </div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">七、FOC电流环主循环</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            把上面所有步骤串起来，在 PWM 定时器中断里高频调用（如 10kHz）：
+          </p>
+          <div class="code-block"><span class="code-comment">/* FOC 电流环：在 TIM1 中断里调用(由ADC采样完成触发) */</span>
+<span class="code-keyword">void</span> <span class="code-func">FOC_Loop</span>(<span class="code-keyword">float</span> iq_ref) {     <span class="code-comment">// iq_ref = 期望力矩电流</span>
+  <span class="code-comment">// 1. 读电流(ADC已在中断里转换好)</span>
+  CurrentSense_t cs;
+  <span class="code-func">FOC_ReadCurrents</span>(&amp;cs, g_adc_ia, g_adc_ib);
+
+  <span class="code-comment">// 2. 获取电角度 θ(来自编码器)</span>
+  <span class="code-keyword">float</span> theta = <span class="code-func">Encoder_GetElecAngle</span>();
+  <span class="code-keyword">float</span> sin_t = <span class="code-func">sin</span>(theta), cos_t = <span class="code-func">cos</span>(theta);
+
+  <span class="code-comment">// 3. Clarke → Park</span>
+  <span class="code-keyword">float</span> ialpha, ibeta;
+  <span class="code-func">Clarke</span>(cs.ia, cs.ib, &amp;ialpha, &amp;ibeta);
+  <span class="code-keyword">float</span> id, iq;
+  <span class="code-func">Park</span>(ialpha, ibeta, sin_t, cos_t, &amp;id, &amp;iq);
+
+  <span class="code-comment">// 4. PI 电流环 (Id_ref = 0)</span>
+  <span class="code-keyword">float</span> vd, vq;
+  <span class="code-func">FOC_CurrentLoop</span>(<span class="code-number">0.0f</span>, iq_ref, id, iq, &amp;vd, &amp;vq);
+
+  <span class="code-comment">// 5. 反Park</span>
+  <span class="code-keyword">float</span> valpha, vbeta;
+  <span class="code-func">InvPark</span>(vd, vq, sin_t, cos_t, &amp;valpha, &amp;vbeta);
+
+  <span class="code-comment">// 6. SVPWM → 写入定时器CCR</span>
+  <span class="code-keyword">uint16_t</span> ca, cb, cc;
+  <span class="code-func">SVPWM</span>(valpha, vbeta, g_vbus, PWM_PERIOD, &amp;ca, &amp;cb, &amp;cc);
+  TIM1->CCR1 = ca;  TIM1->CCR2 = cb;  TIM1->CCR3 = cc;
+}</div>
+
+          <div class="info-box tip mt-3">
+            <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <div><strong>调试顺序</strong>：① 先开环（固定θ递增）确认SVPWM能让电机平稳转；② 闭环Id（设Iq=0），看Id能否跟踪到0；③ 最后闭环Iq，逐步加负载验证力矩响应。每一步都用串口输出波形观察。<strong>开源参考</strong>：SimpleFOC、VESC、STM32 MC SDK 的代码都值得对照阅读。</div>
           </div>
         `,
       },
@@ -930,6 +1317,449 @@ const MotorData = {
             <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
             <div><strong>调试顺序</strong>：先调电流环（最内环），再调速度环，最后调位置环。由内到外逐级调试，确保内环稳定后再调外环。</div>
           </div>
+        `,
+      },
+      {
+        id: 'servo-control',
+        title: '伺服控制与通信',
+        desc: '脉冲/方向控制、CANopen DS402协议、工业伺服的命令接口',
+        icon: '📡',
+        tags: ['伺服', '通信协议'],
+        content: `
+          <h3 class="text-lg font-semibold mb-3">工业伺服怎么"听命令"</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-4">
+            你写的 PID/FOC 是<strong>驱动器内部</strong>的控制算法。但在实际工程里，伺服电机通常是一体化产品（电机+驱动器+编码器），MCU 不直接控 PWM，而是<strong>发命令给驱动器</strong>。这就涉及"上位机如何控制伺服"的通信方式。
+          </p>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">一、脉冲/方向控制（最简单）</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            和步进电机一模一样的接口：发脉冲走位置，DIR 决定方向。伺服驱动器内部用编码器闭环，保证不丢步。这是<strong>国产伺服最通用的方式</strong>（松下、汇川、台达都支持）。
+          </p>
+          <div class="overflow-x-auto mb-3"><table class="compare-table">
+            <thead><tr><th>信号</th><th>含义</th><th>典型接法</th></tr></thead>
+            <tbody>
+              <tr><td class="font-medium">PULSE</td><td>脉冲（每个脉冲走固定角度）</td><td>差分输出，接驱动器 PUL+/PUL-</td></tr>
+              <tr><td class="font-medium">DIR</td><td>方向电平</td><td>接 DIR+/DIR-</td></tr>
+              <tr><td class="font-medium">ENABLE</td><td>伺服使能</td><td>接 ENA，低电平有效</td></tr>
+              <tr><td class="font-medium">ALARM</td><td>故障输出</td><td>接 MCU 输入，触发即停</td></tr>
+            </tbody>
+          </table></div>
+          <div class="info-box tip mb-3"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>电子齿轮比</strong>：驱动器里设的一个比例，决定"1个脉冲走多少角度"。例如编码器 10000 线，设齿轮比让 10000 脉冲=1圈，则1脉冲=0.036°。MCU 端只管发脉冲数，不用关心编码器分辨率。</div></div>
+
+          <div class="code-block"><span class="code-comment">/* 脉冲/方向控制伺服走位置（STM32定时器PWM脉冲模式）
+ * 用定时器输出固定数量的脉冲，硬件自动完成 */</span>
+<span class="code-keyword">void</span> <span class="code-func">Servo_MovePulse</span>(<span class="code-keyword">int32_t</span> pulses, <span class="code-keyword">uint32_t</span> freq_hz) {
+  <span class="code-comment">// 1. 设置方向</span>
+  <span class="code-keyword">if</span> (pulses &gt;= <span class="code-number">0</span>) HAL_GPIO_WritePin(DIR_PORT, DIR_PIN, GPIO_PIN_SET);
+  <span class="code-keyword">else</span>        HAL_GPIO_WritePin(DIR_PORT, DIR_PIN, GPIO_PIN_RESET);
+  <span class="code-keyword">uint32_t</span> count = (pulses &gt;= <span class="code-number">0</span>) ? pulses : -pulses;
+
+  <span class="code-comment">// 2. 配置定时器：频率 = freq_hz, 脉冲数 = count
+  //    STM32用 TIM PWM + 重复计数器/单脉冲模式 */</span>
+  htim2.Instance->ARR = SystemCoreClock / freq_hz - <span class="code-number">1</span>;  <span class="code-comment">// 自动重装载值</span>
+  htim2.Instance->CCR1 = (htim2.Instance->ARR + <span class="code-number">1</span>) / <span class="code-number">2</span>;  <span class="code-comment">// 50%占空比</span>
+  <span class="code-comment">// 用DMA或中断递减计数，到0停止PWM</span>
+  g_pulse_remaining = count;
+  HAL_TIM_PWM_Start(&amp;htim2, TIM_CHANNEL_1);
+}
+
+<span class="code-comment">/* 在定时器更新中断里递减，到0关PWM */</span>
+<span class="code-keyword">void</span> <span class="code-func">HAL_TIM_PeriodElapsedCallback</span>(TIM_HandleTypeDef *htim) {
+  <span class="code-keyword">if</span> (htim == &amp;htim2 &amp;&amp; g_pulse_remaining &gt; <span class="code-number">0</span>) {
+    <span class="code-keyword">if</span> (--g_pulse_remaining == <span class="code-number">0</span>)
+      HAL_TIM_PWM_Stop(&amp;htim2, TIM_CHANNEL_1);
+  }
+}</div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">二、模拟量控制（速度/转矩模式）</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            用 DAC 或 PWM 滤波输出 0~10V（或 -10~+10V）模拟电压，电压值对应转速或转矩。<strong>简单但精度低</strong>（受温漂、线损影响），逐渐被数字通信淘汰。
+          </p>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">三、CANopen DS402（工业标准）</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            现代伺服（机械臂、自动化产线）的标配。基于 CAN 总线，遵循 <strong>CiA 402</strong>（旧称 DSP402）设备协议。MCU 发标准化的对象字典命令，所有品牌伺服通用。
+          </p>
+
+          <div class="info-box info mb-3"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>CANopen 的分层</strong>：物理层(CAN总线) → 数据链路层(CAN帧) → 应用层(CANopen SDO/PDO/NMT) → 设备协议(DS402运动控制)。学 DS402 前要先懂 CANopen 基础（对象字典、PDO/SDO）。</div></div>
+
+          <h4 class="font-medium mt-4 mb-2">DS402 关键对象（对象字典 OD）</h4>
+          <div class="overflow-x-auto mb-3"><table class="compare-table">
+            <thead><tr><th>索引</th><th>名称</th><th>类型</th><th>用途</th></tr></thead>
+            <tbody>
+              <tr><td class="font-mono">6040h</td><td>控制字 controlword</td><td>uint16</td><td>启停、模式切换、故障复位</td></tr>
+              <tr><td class="font-mono">6041h</td><td>状态字 statusword</td><td>uint16</td><td>伺服当前状态（就绪/使能/故障）</td></tr>
+              <tr><td class="font-mono">6060h</td><td>运行模式</td><td>int8</td><td>PP/PT/PV/PQ/CSP/CSV 等</td></tr>
+              <tr><td class="font-mono">607Ah</td><td>目标位置</td><td>int32</td><td>CSP模式下设置目标位置</td></tr>
+              <tr><td class="font-mono">60FFh</td><td>目标速度</td><td>uint32</td><td>PV模式下设置目标转速</td></tr>
+              <tr><td class="font-mono">6064h</td><td>实际位置</td><td>int32</td><td>读编码器实际位置</td></tr>
+            </tbody>
+          </table></div>
+
+          <div class="code-block"><span class="code-comment">/* DS402 状态机：通过 controlword 切换伺服状态
+ * 典型启动流程：初始化 → 使能 → 运行
+ * 每一步要读 statusword 确认上一状态完成 */</span>
+
+<span class="code-comment">// 控制字的常用位组合</span>
+<span class="code-keyword">#define</span> CW_SHUTDOWN       <span class="code-number">0x0006</span>   <span class="code-comment">// 准备使能</span>
+<span class="code-keyword">#define</span> CW_SWITCH_ON      <span class="code-number">0x0007</span>   <span class="code-comment">// 使能</span>
+<span class="code-keyword">#define</span> CW_ENABLE_OP      <span class="code-number">0x000F</span>   <span class="code-comment">// 使能运行</span>
+<span class="code-keyword">#define</span> CW_FAULT_RESET    <span class="code-number">0x0080</span>   <span class="code-comment">// 故障复位</span>
+
+<span class="code-comment">// 状态字的位</span>
+<span class="code-keyword">#define</span> SW_READY_TO_SWITCH_ON  <span class="code-number">0x0001</span>
+<span class="code-keyword">#define</span> SW_SWITCHED_ON         <span class="code-number">0x0002</span>
+<span class="code-keyword">#define</span> SW_OPERATION_ENABLED   <span class="code-number">0x0004</span>
+<span class="code-keyword">#define</span> SW_FAULT                <span class="code-number">0x0008</span>
+
+<span class="code-comment">/**
+ * DS402 使能流程（阻塞式，实际应用加超时）
+ * 通过 PDO 写 controlword，读 statusword
+ */</span>
+<span class="code-keyword">int</span> <span class="code-func">DS402_Enable</span>(<span class="code-keyword">void</span>) {
+  <span class="code-comment">// 1. 发 SHUTDOWN，等状态字出现 READY_TO_SWITCH_ON</span>
+  <span class="code-func">WriteControlWord</span>(CW_SHUTDOWN);
+  <span class="code-keyword">while</span> (!(<span class="code-func">ReadStatusWord</span>() & SW_READY_TO_SWITCH_ON));
+
+  <span class="code-comment">// 2. 发 SWITCH_ON，等 SWITCHED_ON</span>
+  <span class="code-func">WriteControlWord</span>(CW_SWITCH_ON);
+  <span class="code-keyword">while</span> (!(<span class="code-func">ReadStatusWord</span>() & SW_SWITCHED_ON));
+
+  <span class="code-comment">// 3. 发 ENABLE_OP，等 OPERATION_ENABLED</span>
+  <span class="code-func">WriteControlWord</span>(CW_ENABLE_OP);
+  <span class="code-keyword">while</span> (!(<span class="code-func">ReadStatusWord</span>() & SW_OPERATION_ENABLED));
+
+  <span class="code-keyword">return</span> <span class="code-number">0</span>;   <span class="code-comment">// 使能成功</span>
+}
+
+<span class="code-comment">/* CSP(周期同步位置)模式：周期性发目标位置
+ * 这就是机械臂上位机的典型用法 */</span>
+<span class="code-keyword">void</span> <span class="code-func">DS402_CSP_Move</span>(<span class="code-keyword">int32_t</span> target_pos) {
+  <span class="code-func">WriteOD</span>(<span class="code-number">0x607A</span>, target_pos);     <span class="code-comment">// 写目标位置</span>
+  <span class="code-func">WriteControlWord</span>(CW_ENABLE_OP | <span class="code-number">0x10</span>); <span class="code-comment">// setpoint有效</span>
+}</div>
+
+          <div class="info-box warning mt-3"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg><div><strong>CANopen 的调试门槛较高</strong>。需要 CAN 分析仪（如 PCAN-USB、CANalyst-II）+ 上位机软件（如 CANopen Magic、ZLT CAN）。先用 SDO 配好对象字典，再跑 PDO 实时通信。建议先用脉冲方向控伺服熟悉，再上 CANopen。</div></div>
+
+          <h4 class="font-medium mt-4 mb-2">通信方式选型</h4>
+          <div class="overflow-x-auto"><table class="compare-table">
+            <thead><tr><th>方式</th><th>成本</th><th>精度</th><th>多轴同步</th><th>适用</th></tr></thead>
+            <tbody>
+              <tr><td class="font-medium">脉冲/方向</td><td>低</td><td>中</td><td>差（每轴占资源）</td><td>单轴/简单设备、国产伺服</td></tr>
+              <tr><td class="font-medium">模拟量</td><td>低</td><td>低</td><td>差</td><td>老设备、调速场景</td></tr>
+              <tr><td class="font-medium">CANopen</td><td>中</td><td>高</td><td>好</td><td>工业机械臂、AGV、多轴设备</td></tr>
+              <tr><td class="font-medium">EtherCAT</td><td>高</td><td>极高</td><td>极好(μs级同步)</td><td>高端机械臂、数控机床</td></tr>
+            </tbody>
+          </table></div>
+        `,
+      },
+    ],
+  },
+
+  // ========== 机器人应用篇 ==========
+  robotics: {
+    title: '机器人应用',
+    subtitle: '从单电机控制到机械臂运动学、轨迹规划与上位机协同',
+    sections: [
+      {
+        id: 'kinematics',
+        title: '运动学入门',
+        desc: '正运动学/逆运动学：从关节角度到末端位置（2-DOF平面臂实例）',
+        icon: '🦾',
+        tags: ['机器人', '数学'],
+        content: `
+          <h3 class="text-lg font-semibold mb-3">为什么机械臂需要"运动学"</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-4">
+            你已经能让单个电机转到指定角度了。但机械臂的任务是<strong>"把末端（夹爪）移到xyz坐标"</strong>——这需要把"末端位置"翻译成"各关节角度"。这就是<strong>运动学</strong>（Kinematics）。
+          </p>
+          <div class="info-box tip mb-6"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>两个方向</strong>：<strong>正运动学(FK)</strong>：已知关节角 → 算末端位置（简单，矩阵乘法）。<strong>逆运动学(IK)</strong>：已知末端位置 → 算关节角（难，可能多解、无解）。机械臂控制的核心是 IK。</div></div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">实例：2-DOF平面机械臂</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            两段连杆（长度 L1、L2），两个旋转关节（角度 θ1、θ2）。末端坐标 (x, y) 与关节角的关系用三角函数推导：
+          </p>
+          <div class="formula-block">
+            <div class="text-left">
+              <strong>正运动学 FK</strong>（关节角→末端）：<br>
+              $x = L_1 \\cos\\theta_1 + L_2 \\cos(\\theta_1+\\theta_2)$
+              $y = L_1 \\sin\\theta_1 + L_2 \\sin(\\theta_1+\\theta_2)$
+            </div>
+          </div>
+
+          <div class="formula-block">
+            <div class="text-left">
+              <strong>逆运动学 IK</strong>（末端→关节角）：用余弦定理<br>
+              $\\theta_2 = \\pm\\arccos\\frac{x^2+y^2-L_1^2-L_2^2}{2 L_1 L_2}$
+              $\\theta_1 = \\arctan2(y,x) - \\arctan2(L_2\\sin\\theta_2,\\, L_1+L_2\\cos\\theta_2)$
+            </div>
+            <div class="text-sm text-gray-500 mt-2">±号对应"肘上/肘下"两种姿态</div>
+          </div>
+
+          <div class="code-block"><span class="code-comment">/* 2-DOF平面臂 正运动学 */</span>
+<span class="code-keyword">typedef struct</span> { <span class="code-keyword">float</span> x, y; } Vec2;
+
+<span class="code-keyword">Vec2</span> <span class="code-func">ForwardKinematics</span>(<span class="code-keyword">float</span> L1, <span class="code-keyword">float</span> L2,
+                          <span class="code-keyword">float</span> th1, <span class="code-keyword">float</span> th2) {
+  <span class="code-keyword">float</span> c1 = <span class="code-func">cosf</span>(th1), s1 = <span class="code-func">sinf</span>(th1);
+  <span class="code-keyword">float</span> c12 = <span class="code-func">cosf</span>(th1 + th2), s12 = <span class="code-func">sinf</span>(th1 + th2);
+  <span class="code-keyword">Vec2</span> p;
+  p.x = L1 * c1 + L2 * c12;
+  p.y = L1 * s1 + L2 * s12;
+  <span class="code-keyword">return</span> p;
+}
+
+<span class="code-comment">/* 2-DOF平面臂 逆运动学
+ * elbow_up: 1=肘上姿态, 0=肘下姿态
+ * 返回 0=成功, -1=目标不可达(超出工作半径) */</span>
+<span class="code-keyword">int</span> <span class="code-func">InverseKinematics</span>(<span class="code-keyword">float</span> L1, <span class="code-keyword">float</span> L2,
+                         <span class="code-keyword">float</span> x, <span class="code-keyword">float</span> y, <span class="code-keyword">int</span> elbow_up,
+                         <span class="code-keyword">float</span> *th1, <span class="code-keyword">float</span> *th2) {
+  <span class="code-keyword">float</span> r2 = x*x + y*y;
+  <span class="code-keyword">float</span> r  = <span class="code-func">sqrtf</span>(r2);
+
+  <span class="code-comment">// 可达性检查：目标不能比 L1+L2 远，也不能比 |L1-L2| 近</span>
+  <span class="code-keyword">if</span> (r &gt; L1 + L2 || r &lt; <span class="code-func">fabsf</span>(L1 - L2)) <span class="code-keyword">return</span> -<span class="code-number">1</span>;
+
+  <span class="code-comment">// θ2 = ±arccos((x²+y²-L1²-L2²)/(2·L1·L2))</span>
+  <span class="code-keyword">float</span> c2 = (r2 - L1*L1 - L2*L2) / (<span class="code-number">2.0f</span> * L1 * L2);
+  <span class="code-keyword">if</span> (c2 &gt; <span class="code-number">1.0f</span>) c2 = <span class="code-number">1.0f</span>;   <span class="code-comment">// 防浮点误差越界</span>
+  <span class="code-keyword">if</span> (c2 &lt; -<span class="code-number">1.0f</span>) c2 = -<span class="code-number">1.0f</span>;
+  *th2 = <span class="code-func">acosf</span>(c2);
+  <span class="code-keyword">if</span> (!elbow_up) *th2 = -*th2;
+
+  <span class="code-comment">// θ1 = atan2(y,x) - atan2(L2·sinθ2, L1+L2·cosθ2)</span>
+  *th1 = <span class="code-func">atan2f</span>(y, x) - <span class="code-func">atan2f</span>(L2 * <span class="code-func">sinf</span>(*th2), L1 + L2 * <span class="code-func">cosf</span>(*th2));
+  <span class="code-keyword">return</span> <span class="code-number">0</span>;
+}</div>
+
+          <div class="info-box warning mt-3"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg><div><strong>多解与奇异性</strong>：IK 可能有多个解（2-DOF 有"肘上/肘下"两种），实际机械臂还要考虑关节限位、避障选最优解。当末端伸到工作半径边缘时（r 接近 L1+L2），雅可比矩阵奇异，小位移需要关节大角度变化——这就是<strong>奇异点</strong>，运动会卡顿。</div></div>
+
+          <div class="info-box tip mt-3"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>从2-DOF到6-DOF</strong>：实际机械臂通常是 6 自由度（6个关节）。2-DOF 的解析解好推导，6-DOF 解析解非常复杂（依赖具体构型，如"球形手腕"可分解）。工程上常用<strong>数值解</strong>（雅可比迭代）或调用库（KDL、TRAC-IK、IKFast）。MCU 端通常只做单关节位置控制，IK 在上位机算好再下发。</div></div>
+        `,
+      },
+      {
+        id: 'trajectory',
+        title: '轨迹规划与多轴协调',
+        desc: '让多个电机平滑同步运动：线性插补、梯形速度规划、笛卡尔空间轨迹',
+        icon: '📈',
+        tags: ['机器人', '运动规划'],
+        content: `
+          <h3 class="text-lg font-semibold mb-3">为什么需要"轨迹规划"</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-4">
+            知道起点和终点角度后，如果直接命令电机"立刻到目标"——电机会猛冲（冲击机械）或超调（PID跟不上）。<strong>轨迹规划</strong>就是生成一条从起点到终点的平滑曲线，让电机<strong>按时间一点点跟踪</strong>。
+          </p>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">一、关节空间：梯形速度轨迹</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            最常用。把运动分成<strong>加速-匀速-减速</strong>三段（和步进电机加减速同理）。给定起点、终点、最大速度、加速度，生成每个时刻的目标位置。
+          </p>
+          <div class="code-block"><span class="code-comment">/* 梯形速度轨迹生成器（关节空间）
+ * 在控制周期里周期性调用 Traj_Update，输出当前目标位置 */</span>
+<span class="code-keyword">typedef struct</span> {
+  <span class="code-keyword">float</span> q0, q1;         <span class="code-comment">// 起点、终点位置</span>
+  <span class="code-keyword">float</span> v_max, a_max;   <span class="code-comment">// 最大速度、最大加速度</span>
+  <span class="code-keyword">float</span> t_a, t_v, t_total; <span class="code-comment">// 加速时间、匀速时间、总时间</span>
+  <span class="code-keyword">float</span> t;              <span class="code-comment">// 当前时间</span>
+  <span class="code-keyword">float</span> dt;            <span class="code-comment">// 控制周期(秒)</span>
+} Traj_t;
+
+<span class="code-keyword">void</span> <span class="code-func">Traj_Init</span>(Traj_t *t, <span class="code-keyword">float</span> q0, <span class="code-keyword">float</span> q1,
+                  <span class="code-keyword">float</span> v_max, <span class="code-keyword">float</span> a_max, <span class="code-keyword">float</span> dt) {
+  t->q0 = q0; t->q1 = q1;
+  t->v_max = v_max; t->a_max = a_max;
+  t->dt = dt; t->t = <span class="code-number">0</span>;
+
+  <span class="code-keyword">float</span> dist = <span class="code-func">fabsf</span>(q1 - q0);
+  <span class="code-comment">// 加速距离 = v²/(2a)。若总距离不够走完整梯形，用三角轨迹（无匀速段）*/</span>
+  <span class="code-keyword">float</span> d_accel = v_max * v_max / (<span class="code-number">2.0f</span> * a_max);
+  <span class="code-keyword">if</span> (dist &gt;= <span class="code-number">2</span> * d_accel) {
+    t->t_a = v_max / a_max;                 <span class="code-comment">// 有匀速段</span>
+    t->t_v = (dist - <span class="code-number">2</span> * d_accel) / v_max;
+    t->t_total = <span class="code-number">2</span> * t->t_a + t->t_v;
+  } <span class="code-keyword">else</span> {
+    t->t_a = <span class="code-func">sqrtf</span>(dist / a_max);      <span class="code-comment">// 三角轨迹</span>
+    t->t_v = <span class="code-number">0</span>;
+    t->t_total = <span class="code-number">2</span> * t->t_a;
+  }
+}
+
+<span class="code-comment">/* 返回当前目标位置，运动结束返回 1 */</span>
+<span class="code-keyword">int</span> <span class="code-func">Traj_Update</span>(Traj_t *t, <span class="code-keyword">float</span> *q_out) {
+  <span class="code-keyword">float</span> dir = (t->q1 &gt; t->q0) ? <span class="code-number">1.0f</span> : -<span class="code-number">1.0f</span>;
+  <span class="code-keyword">float</span> ta = t->t_a, tv = t->t_v;
+
+  <span class="code-keyword">if</span> (t->t &gt;= t->t_total) { *q_out = t->q1; <span class="code-keyword">return</span> <span class="code-number">1</span>; }
+
+  <span class="code-keyword">float</span> pos;
+  <span class="code-keyword">if</span> (t->t &lt; ta) {
+    pos = t->q0 + dir * <span class="code-number">0.5f</span> * t->a_max * t->t * t->t;   <span class="code-comment">// 加速段</span>
+  } <span class="code-keyword">else if</span> (t->t &lt; ta + tv) {
+    <span class="code-keyword">float</span> v = t->a_max * ta;
+    pos = t->q0 + dir * (<span class="code-number">0.5f</span> * t->a_max * ta * ta + v * (t->t - ta));  <span class="code-comment">// 匀速段</span>
+  } <span class="code-keyword">else</span> {
+    <span class="code-keyword">float</span> t_dec = t->t - ta - tv;
+    <span class="code-keyword">float</span> v = t->a_max * ta;
+    pos = t->q1 - dir * (<span class="code-number">0.5f</span> * t->a_max * (ta - t_dec) * (ta - t_dec));  <span class="code-comment">// 减速段</span>
+    pos = t->q1 - dir * (<span class="code-number">0.5f</span> * t->a_max * (t->t_total - t->t) * (t->t_total - t->t));
+  }
+  *q_out = pos;
+  t->t += t->dt;
+  <span class="code-keyword">return</span> <span class="code-number">0</span>;
+}</div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">二、多轴同步：同时启动同时结束</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            机械臂多个关节要<strong>同步运动</strong>——起点和终点不同，但要同时到达（否则末端走出来的不是直线）。方法：找出运动距离最长的轴，算它的总时间，其它轴用相同总时间（更小的速度）运动。
+          </p>
+          <div class="code-block"><span class="code-comment">/* N轴同步：所有轴用同一个总时间，自动按各自距离缩放速度 */</span>
+<span class="code-keyword">typedef struct</span> {
+  Traj_t traj[<span class="code-number">6</span>];   <span class="code-comment">// 假设最多6轴</span>
+  <span class="code-keyword">int</span> n_axis;
+} MultiTraj_t;
+
+<span class="code-keyword">void</span> <span class="code-func">MultiTraj_Init</span>(MultiTraj_t *m, <span class="code-keyword">float</span> *q0, <span class="code-keyword">float</span> *q1,
+                         <span class="code-keyword">int</span> n, <span class="code-keyword">float</span> v_max, <span class="code-keyword">float</span> a_max, <span class="code-keyword">float</span> dt) {
+  m->n_axis = n;
+  <span class="code-comment">// 找最大位移，据此算"组时间"</span>
+  <span class="code-keyword">float</span> max_dist = <span class="code-number">0</span>;
+  <span class="code-keyword">for</span> (<span class="code-keyword">int</span> i = <span class="code-number">0</span>; i &lt; n; i++) {
+    <span class="code-keyword">float</span> d = <span class="code-func">fabsf</span>(q1[i] - q0[i]);
+    <span class="code-keyword">if</span> (d &gt; max_dist) max_dist = d;
+  }
+  <span class="code-comment">// 用最大位移算总时间，所有轴共用</span>
+  <span class="code-keyword">float</span> group_t_total = <span class="code-func">sqrtf</span>(max_dist / a_max) * <span class="code-number">2.0f</span>;
+  <span class="code-keyword">for</span> (<span class="code-keyword">int</span> i = <span class="code-number">0</span>; i &lt; n; i++) {
+    <span class="code-comment">// 每轴按自己的距离反推 v_max_i，保证总时间一致</span>
+    <span class="code-keyword">float</span> v_i = <span class="code-func">fabsf</span>(q1[i] - q0[i]) / (group_t_total * <span class="code-number">0.5f</span>);
+    <span class="code-func">Traj_Init</span>(&amp;m->traj[i], q0[i], q1[i], v_i, a_max, dt);
+  }
+}
+
+<span class="code-comment">/* 同步更新所有轴，返回当前各轴目标位置 */</span>
+<span class="code-keyword">void</span> <span class="code-func">MultiTraj_Update</span>(MultiTraj_t *m, <span class="code-keyword">float</span> *q_out) {
+  <span class="code-keyword">for</span> (<span class="code-keyword">int</span> i = <span class="code-number">0</span>; i &lt; m->n_axis; i++)
+    <span class="code-func">Traj_Update</span>(&amp;m->traj[i], &amp;q_out[i]);
+}</div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">三、笛卡尔空间：直线/圆弧插补</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            上面是<strong>关节空间</strong>规划（各关节独立）。但很多时候要末端<strong>走直线或圆弧</strong>（焊接、画图、装配）。方法：在<strong>笛卡尔空间</strong>对末端位置做插值，每一步用逆运动学换算回关节角。
+          </p>
+          <div class="step-list">
+            <div class="step-item"><div><strong>1. 路径插值</strong>：在起点终点间生成一系列中间点 (x_i, y_i)，按直线或圆弧。</div></div>
+            <div class="step-item"><div><strong>2. 速度规划</strong>：对这些点沿路径做梯形速度规划（控制弧长进度）。</div></div>
+            <div class="step-item"><div><strong>3. 逆运动学</strong>：每个 (x_i, y_i) 算出关节角 (θ1_i, θ2_i)。</div></div>
+            <div class="step-item"><div><strong>4. 下发关节角</strong>：把 (θ1_i, θ2_i) 喂给各轴位置环。</div></div>
+          </div>
+
+          <div class="info-box tip mt-3"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>插补周期 vs 控制周期</strong>：插补周期（如 10ms，生成路径点）通常比位置控制周期（如 1ms）慢。控制环里对插补点做<strong>线性内插</strong>得到当前目标，避免目标跳变。<strong>开源参考</strong>：LinuxCNC、MoveIt、ROS2 control 的轨迹生成器都是这套思路。</div></div>
+        `,
+      },
+      {
+        id: 'mcu-ros',
+        title: 'MCU与Linux/ROS桥接',
+        desc: '单片机做实时控制，Linux做高层规划——机器人系统的经典分工',
+        icon: '🔗',
+        tags: ['机器人', '架构'],
+        content: `
+          <h3 class="text-lg font-semibold mb-3">为什么机器人要"双脑"</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-4">
+            单片机擅长<strong>实时</strong>（μs级中断、PWM、ADC），但不擅长复杂计算和生态。Linux/ROS 擅长<strong>规划、感知、生态</strong>（视觉、SLAM、运动规划），但实时性差（ms级抖动）。机器人系统几乎都用<strong>双脑架构</strong>：各取所长。
+          </p>
+
+          <div class="overflow-x-auto mb-6"><table class="compare-table">
+            <thead><tr><th>职责</th><th>MCU端（实时）</th><th>Linux/ROS端（高层）</th></tr></thead>
+            <tbody>
+              <tr><td class="font-medium">频率</td><td>1~20 kHz（电流/速度环）</td><td>10~100 Hz（规划/感知）</td></tr>
+              <tr><td class="font-medium">任务</td><td>PID、FOC、PWM、ADC、编码器</td><td>运动学、轨迹规划、视觉、SLAM</td></tr>
+              <tr><td class="font-medium">通信</td><td>从机：应答命令、上报状态</td><td>主机：下发目标、读状态</td></tr>
+              <tr><td class="font-medium">实时性</td><td>硬实时（中断保证）</td><td>软实时（够用即可）</td></tr>
+            </tbody>
+          </table></div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">一、通信协议选择</h3>
+          <div class="overflow-x-auto mb-3"><table class="compare-table">
+            <thead><tr><th>协议</th><th>带宽</th><th>实时性</th><th>适用</th></tr></thead>
+            <tbody>
+              <tr><td class="font-medium">UART/串口</td><td>低(115200~3M bps)</td><td>中</td><td>简单原型、调试</td></tr>
+              <tr><td class="font-medium">USB CDC</td><td>高(12Mbps+)</td><td>中</td><td>上位机调试、数据采集</td></tr>
+              <tr><td class="font-medium">CAN/CANopen</td><td>中(1Mbps)</td><td>好(确定性)</td><td>多关节机械臂、AGV</td></tr>
+              <tr><td class="font-medium">EtherCAT</td><td>极高(100Mbps)</td><td>极好(μs级)</td><td>工业机械臂、高端系统</td></tr>
+              <tr><td class="font-medium">SPI/I²C</td><td>中</td><td>好</td><td>板内短距离（同一PCB上）</td></tr>
+            </tbody>
+          </table></div>
+          <div class="info-box tip mb-3"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>入门推荐</strong>：UART（最简单）或 USB CDC（带宽够、即插即用）。多轴/工业级再上 CAN。强烈不建议用网络socket做实时控制（TCP抖动几十ms，控制环会震荡）。</div></div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">二、自定义串口协议（最简方案）</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            一个带帧头、长度、命令、CRC 的二进制协议。MCU 端解析命令、执行、上报。这是绝大多数 DIY 机械臂的起步方案。
+          </p>
+          <div class="code-block"><span class="code-comment">/* 通用串口协议帧格式
+ * | 帧头(2) | 长度(1) | 命令(1) | 数据(N) | CRC16(2) |
+ * 帧头固定 0xAA 0x55，长度 = 命令+数据 字节数 */</span>
+
+<span class="code-keyword">#define</span> FRAME_HEAD0  <span class="code-number">0xAA</span>
+<span class="code-keyword">#define</span> FRAME_HEAD1  <span class="code-number">0x55</span>
+
+<span class="code-comment">// 命令定义</span>
+<span class="code-keyword">enum</span> {
+  CMD_SET_TARGET = <span class="code-number">0x01</span>,    <span class="code-comment">// 设目标位置(6轴int32)</span>
+  CMD_GET_STATE  = <span class="code-number">0x02</span>,    <span class="code-comment">// 读当前状态</span>
+  CMD_ENABLE     = <span class="code-number">0x03</span>,    <span class="code-comment">// 使能/失能</span>
+  CMD_SET_PID    = <span class="code-number">0x04</span>,    <span class="code-comment">// 在线调PID</span>
+};
+
+<span class="code-comment">/* CRC16-MODBUS 校验(防数据错乱) */</span>
+<span class="code-keyword">uint16_t</span> <span class="code-func">CRC16</span>(<span class="code-keyword">const uint8_t</span> *p, <span class="code-keyword">uint16_t</span> len) {
+  <span class="code-keyword">uint16_t</span> crc = <span class="code-number">0xFFFF</span>;
+  <span class="code-keyword">while</span> (len--) {
+    crc ^= *p++;
+    <span class="code-keyword">for</span> (<span class="code-keyword">int</span> i = <span class="code-number">0</span>; i &lt; <span class="code-number">8</span>; i++)
+      crc = (crc & <span class="code-number">1</span>) ? ((crc &gt;&gt; <span class="code-number">1</span>) ^ <span class="code-number">0xA001</span>) : (crc &gt;&gt; <span class="code-number">1</span>);
+  }
+  <span class="code-keyword">return</span> crc;
+}
+
+<span class="code-comment">/* 发送一帧(响应或主动上报) */</span>
+<span class="code-keyword">void</span> <span class="code-func">Frame_Send</span>(<span class="code-keyword">uint8_t</span> cmd, <span class="code-keyword">const uint8_t</span> *data, <span class="code-keyword">uint8_t</span> len) {
+  <span class="code-keyword">uint8_t</span> buf[<span class="code-number">64</span>];
+  buf[<span class="code-number">0</span>] = FRAME_HEAD0; buf[<span class="code-number">1</span>] = FRAME_HEAD1;
+  buf[<span class="code-number">2</span>] = len + <span class="code-number">1</span>;             <span class="code-comment">// 长度=数据+命令字节</span>
+  buf[<span class="code-number">3</span>] = cmd;
+  <span class="code-keyword">for</span> (<span class="code-keyword">int</span> i = <span class="code-number">0</span>; i &lt; len; i++) buf[<span class="code-number">4</span> + i] = data[i];
+  <span class="code-keyword">uint16_t</span> crc = <span class="code-func">CRC16</span>(&amp;buf[<span class="code-number">2</span>], len + <span class="code-number">2</span>);
+  buf[<span class="code-number">4</span> + len] = crc & <span class="code-number">0xFF</span>;
+  buf[<span class="code-number">5</span> + len] = (crc &gt;&gt; <span class="code-number">8</span>) & <span class="code-number">0xFF</span>;
+  <span class="code-func">UART_Send</span>(buf, <span class="code-number">6</span> + len);
+}</div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">三、ROS端的对接（rosserial / micro-ROS）</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            ROS 不能直接读你的串口协议。两种方案：
+          </p>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+            <div class="p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+              <div class="font-medium mb-1">rosserial（ROS1）</div>
+              <div class="text-sm text-gray-500">在MCU上跑一个精简的ROS节点，直接发布/订阅话题。简单但有延迟、对MCU资源占用大。</div>
+            </div>
+            <div class="p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+              <div class="font-medium mb-1">micro-ROS（ROS2，推荐）</div>
+              <div class="text-sm text-gray-500">基于DDS-XRCE，支持ROS2话题/服务/动作。实时性好，官方主推。STM32/ESP32 都有移植。</div>
+            </div>
+          </div>
+          <div class="info-box tip"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>典型数据流</strong>：ROS节点(MoveIt规划) → 发布 <code>/joint_commands</code> 话题 → micro-ROS转发到MCU → MCU解析为各轴目标 → 位置环跟踪。MCU反向把编码器位置发布到 <code>/joint_states</code>，供ROS做TF和可视化。</div></div>
+
+          <h4 class="font-medium mt-6 mb-2">从单片机工程师到机器人开发的进阶路径</h4>
+          <div class="step-list">
+            <div class="step-item"><div><strong>第1步</strong>：单关节位置控制（你现在的水平）—— 用串口发角度，电机转到指定位置。</div></div>
+            <div class="step-item"><div><strong>第2步</strong>：多关节协调 —— 几个电机同时控，加梯形轨迹，让运动平滑。</div></div>
+            <div class="step-item"><div><strong>第3步</strong>：上位机轨迹下发 —— PC（Python/C++）算好路径点，串口逐点下发。</div></div>
+            <div class="step-item"><div><strong>第4步</strong>：加正逆运动学 —— 上位机给末端xyz，MCU转关节角。</div></div>
+            <div class="step-item"><div><strong>第5步</strong>：上 ROS2 + micro-ROS —— 接入生态，用 MoveIt 做规划、rviz 做可视化。</div></div>
+            <div class="step-item"><div><strong>第6步</strong>：加感知 —— 摄像头/激光雷达，闭环定位，实现自主抓取。</div></div>
+          </div>
+
+          <div class="info-box info mt-3"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>关键认知</strong>：单片机技能在机器人时代不仅没过时，反而更稀缺。会写FOC/PID/编码器驱动的嵌入式工程师，懂一点ROS就能做出完整的机械臂——这正是市场最缺的"软硬结合"人才。</div></div>
         `,
       },
     ],
@@ -2122,6 +2952,39 @@ const QuizData = {
     { question: 'STM32读取编码器CNT时，为什么要在固定周期累加到32位变量？', options: ['提高精度', '解决16位CNT连续转动会溢出回卷的问题，否则位置会突变几万', '加快读取速度', '节省内存'], answer: 1, explanation: 'TIM的CNT是16位（最大65535），电机转超过一圈就会回卷。必须在1ms等固定周期频繁采样，把每次的16位增量累加到32位总位置，才能得到连续不突变的位置值。' },
     { question: 'M法测速适合什么场景？', options: ['极低速', '中高速', '只能用于绝对编码器', '只能测角度不能测速度'], answer: 1, explanation: 'M法是"固定时间数脉冲"，高速时一个周期内脉冲多，统计误差小；低速时脉冲稀少（可能一个周期0个脉冲），误差极大。低速应用T法（测一个脉冲的周期）。' },
     { question: '机械臂关节为什么优先选绝对编码器而非增量编码器？', options: ['绝对编码器更便宜', '上电即知位置、无需找零，断电不丢位', '绝对编码器分辨率更低', '增量编码器不能测角度'], answer: 1, explanation: '绝对编码器每个位置对应唯一的数字码，上电直接读出角度，无需"回零"动作。机械臂断电后关节位置保持，增量编码器会丢失参考点。代价是绝对编码器更贵、接口更复杂。' },
+  ],
+  'bldc-commutation': [
+    { question: '六步换向中，一个电角度周期（360°）被划分成几个区间？', options: ['3个（120°）', '6个（60°）', '12个（30°）', '360个（1°）'], answer: 1, explanation: '六步换向把360°电角度按60°分成6个区间，每个区间内两相通电、一相悬空。3个霍尔传感器（相位错开120°）的组合正好产生6个有效状态，对应这6个区间。' },
+    { question: '三相桥的上下两个MOS管为什么绝不能同时导通？', options: ['会降低效率', '会导致电源直通短路，瞬间烧毁MOS管', '会让电机反转', '会产生电磁干扰'], answer: 1, explanation: '同相上下管同时导通=电源经两个管子直接短路（"直通"），电流只受管子内阻限制，可达几十上百安培，瞬间烧管。用互补PWM+死区时间（切换瞬间两管都关一小段时间）防止。' },
+    { question: 'BLDC换向表调试时，电机反转，最可能的原因是？', options: ['死区时间太短', '任意两相（或两个霍尔）接反/顺序错误', 'PWM频率太低', '电流设置过小'], answer: 1, explanation: '三相相序（UVW vs UWV）或霍尔顺序决定了旋转方向。交换换向表里两列、或对调两根相线/两个霍尔，旋转方向就会反转。这是最常见的调试问题。' },
+    { question: '六步换向相比FOC的主要缺点是？', options: ['算法太复杂', '力矩有脉动（每60°跳变一次，电机有哒哒感）', '不能调速', '必须用绝对编码器'], answer: 1, explanation: '六步换向是梯形波控制，每60°电流方向突变一次，力矩不连续，低速时尤其明显。FOC用正弦波连续控制，力矩平滑。但六步实现简单、对硬件要求低，是入门无刷控制的首选。' },
+  ],
+  'foc-impl': [
+    { question: 'FOC电流环中，Id参考值通常设为0的目的是？', options: ['节省电能', '实现最大转矩/电流比（MTPA），因为永磁体已提供磁场', '降低电机温度', '提高PWM频率'], answer: 1, explanation: '在表贴式永磁电机(SPM)中，永磁体已建立磁场，Id=0意味着不产生额外励磁（不削弱也不增强磁场），此时单位电流产生的转矩最大，即最大转矩/电流比(MTPA)。Iq则决定实际输出转矩。' },
+    { question: 'FOC采样相电流时，为什么必须在PWM下桥臂导通的中点采样？', options: ['中点电压最稳定', '此时电流值最稳定，避免采到开关噪声', '中点ADC精度高', '减少CPU占用'], answer: 1, explanation: 'PWM开关瞬间电流剧烈跳变（开关噪声）。下桥臂导通期间电流通过下管形成回路，值最稳定。在PWM周期中点采样，避开了开关边沿，能采到真实的相电流平均值。STM32用TIM TRGO触发ADC实现自动同步。' },
+    { question: 'Clarke变换和Park变换的作用分别是？', options: ['Clarke把三相变两相，Park把交流变直流', '两者都是降低电压', 'Clarke调速，Park换向', '两者顺序可以互换'], answer: 0, explanation: 'Clarke变换把三相静止(abc)→两相静止(αβ)，减少维度；Park变换把两相静止(αβ)→两相旋转(dq)，通过跟随转子旋转把交流量变成直流量，这样才能用PI控制器(PI只擅长控直流量)。' },
+    { question: 'SVPWM相比传统SPWM的主要优势是？', options: ['代码更短', '直流母线电压利用率高约15.5%', '不需要死区', '采样更简单'], answer: 1, explanation: 'SVPWM通过合理分配零矢量时间，让三相电压矢量的合成幅值比SPWM大15.5%。意味着同样的母线电压下，SVPWM能让电机达到更高转速或输出更大转矩，是FOC的标准调制方式。' },
+  ],
+  'servo-control': [
+    { question: '脉冲/方向控制伺服时，"电子齿轮比"的作用是？', options: ['调节电机转速', '决定1个脉冲对应多少角度（位置分辨率）', '降低电机噪音', '限制最大电流'], answer: 1, explanation: '电子齿轮比把MCU发的脉冲数映射到编码器分辨率。例如编码器10000线，设齿轮比让10000脉冲=1圈，则1脉冲=0.036°。MCU端只管发脉冲数，不用关心伺服内部编码器分辨率，灵活适配不同伺服。' },
+    { question: 'CANopen DS402协议中，controlword(6040h)的作用是？', options: ['设置目标位置', '控制伺服启停、模式切换、故障复位', '读取编码器位置', '设置PWM占空比'], answer: 1, explanation: 'controlword是16位命令字，通过位组合实现伺服的使能/失能、运行模式切换、故障复位等。statusword(6041h)则是伺服反馈的状态。两者配合实现DS402状态机控制。' },
+    { question: 'DS402伺服的标准使能流程顺序是？', options: ['直接使能运行', 'SHUTDOWN→SWITCH_ON→ENABLE_OP，逐步等待状态字确认', '发一个使能命令即可', '通过模拟电压使能'], answer: 1, explanation: 'DS402状态机要求逐步切换：先发SHUTDOWN等"准备就绪"，再发SWITCH_ON等"已接通"，最后发ENABLE_OP进入"运行使能"。每一步都要读statusword确认到位，跳步会导致使能失败。' },
+    { question: '多轴机械臂要实现μs级同步运动，应选哪种通信？', options: ['脉冲/方向', '模拟量', 'CANopen', 'EtherCAT'], answer: 3, explanation: 'EtherCAT用"飞读"机制，一帧数据依次穿过所有从站，同步精度可达μs级甚至亚μs，是多轴机械臂、数控机床的高端标配。CANopen同步在ms级，够用但不如EtherCAT。脉冲方向每轴占独立资源，不适合多轴。' },
+  ],
+  'kinematics': [
+    { question: '正运动学(FK)和逆运动学(IK)分别解决什么问题？', options: ['FK:关节角→末端位置；IK:末端位置→关节角', 'FK:末端→关节；IK:关节→末端', '两者都是求速度', '两者完全等价'], answer: 0, explanation: 'FK已知各关节角度，算末端执行器在笛卡尔空间的坐标(正向推演，简单)。IK是反过来：给定目标xyz坐标，求各关节该转多少度。IK更难，因为可能多解(肘上/肘下)、无解(超出工作半径)或奇异(边缘卡顿)。' },
+    { question: '2-DOF平面臂逆运动学中，"肘上/肘下"两种解对应什么？', options: ['电机的转向', 'arccos的±号，对应连杆两种弯曲姿态', '编码器的零点', 'PID的正反作用'], answer: 1, explanation: 'θ2 = ±arccos(...)的±号产生两种解：连杆向"上"弯或向"下"弯。对应机械臂的两种物理姿态。实际应用中要根据关节限位、避障、最短路径等约束选最优解。' },
+    { question: '逆运动学返回"目标不可达"的原因通常是？', options: ['电机故障', '目标点超出工作半径(L1+L2)或太近(<|L1-L2|)', 'PID参数错误', '通信故障'], answer: 1, explanation: '两连杆长度L1、L2，末端能到达的最远距离是L1+L2(完全伸直)，最近是|L1-L2|(完全折叠)。超出这个环形的区域，物理上连杆够不到，IK返回不可达。设计机械臂时要根据工作空间选连杆长度。' },
+  ],
+  'trajectory': [
+    { question: '机械臂为什么要做轨迹规划，而不是直接命令电机到目标位置？', options: ['省电', '避免冲击和超调，让运动平滑可控', '降低成本', '简化代码'], answer: 1, explanation: '直接给目标位置，电机会猛冲(机械冲击)或PID跟不上导致超调震荡。轨迹规划生成从起点到终点的平滑曲线(如梯形速度)，电机按时间逐点跟踪，运动平稳。本质是给位置环一个"可跟随"的目标序列。' },
+    { question: '多轴机械臂要"同时启动同时结束"，工程上怎么做？', options: ['每个轴用不同的加速度', '找出位移最大的轴算总时间，其它轴缩放速度共用同一总时间', '所有轴用相同速度', '逐轴依次运动'], answer: 1, explanation: '各轴位移不同，但必须同步到达(否则末端走偏)。方法：以位移最大的轴为基准算总时间，其它轴降低速度用相同的总时间运动。这样所有轴同时启动同时结束，末端走出预期轨迹。' },
+    { question: '笛卡尔空间直线插补的完整流程是？', options: ['直接发关节角', '路径插值→速度规划→逆运动学换算→下发关节角', '只规划起点终点', '靠电机自己走直线'], answer: 1, explanation: '要让末端走直线：①在起终点间插值生成中间xyz点；②沿路径做梯形速度规划；③每个xyz点用逆运动学算关节角；④关节角下发各轴位置环。关节空间规划末端走的是曲线，只有笛卡尔规划才能走直线/圆弧。' },
+  ],
+  'mcu-ros': [
+    { question: '机器人系统为什么普遍采用"MCU+Linux"双脑架构？', options: ['降低成本', 'MCU擅长硬实时(PWM/ADC)，Linux擅长规划感知，各取所长', '为了 redundancy 冗余', '法律要求'], answer: 1, explanation: 'MCU有硬实时(μs级中断)，适合电流环/编码器/PWM，但不擅长复杂计算。Linux算力强、生态丰富(视觉/SLAM/MoveIt)，但实时性差(ms级抖动)。双脑分工：MCU做实时控制，Linux做高层规划，是机器人系统的标准架构。' },
+    { question: '在自定义串口协议里，为什么必须加CRC校验？', options: ['加快传输', '防止数据错乱导致电机误动作(丢字节/位翻转)', '节省带宽', '加密数据'], answer: 1, explanation: '串口传输可能丢字节、位翻转(电磁干扰)。若命令数据错了，电机会转到错误位置甚至撞限位。CRC16能检测绝大多数错误，校验失败的帧直接丢弃，保证只有完整正确的命令被执行。安全相关的控制协议必须有校验。' },
+    { question: '从单片机工程师进阶到机器人开发，推荐的第一步是？', options: ['直接学ROS2', '把现有的单关节位置控制做扎实，用串口能稳定控一个电机', '买现成机械臂', '学机器学习'], answer: 1, explanation: '机器人是单关节控制的扩展。先把一个电机的位置控制做扎实(串口发角度→稳定转动→编码器反馈)，再扩展到多轴协调、轨迹规划、运动学，最后才上ROS。跳过基础直接上ROS会"空中楼阁"，调不动任何东西。' },
   ],
   'advanced-foc': [
     { question: 'FOC控制中，通常将Id设为多少？', options: ['最大值', '0', '与Iq相等', '负值'], answer: 1, explanation: '在表贴式永磁电机（SPM）中，设Id=0可以实现最大转矩/电流比（MTPA），因为磁场已由永磁体提供。' },
