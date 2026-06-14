@@ -310,7 +310,108 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* ====== 响应式 ====== */
+/* ====== 响应式：平板 (≤1024px) ====== */
+@media (max-width: 1024px) {
+  .chart-container { height: 320px; }
+  .chart-container-lg { height: 380px; }
+}
+
+/* ====== 响应式：手机 (≤768px) ====== */
 @media (max-width: 768px) {
+  /* 装饰圆缩小 */
   .page-hero::before { width: 200px; height: 200px; }
+
+  /* 顶栏：隐藏进度条和帮助按钮，给logo和按钮留空间 */
+  #topbar .max-w-7xl { padding: 0 0.75rem; }
+  #help-btn { display: none !important; }
+  #global-progress-text { display: none !important; }      /* 隐藏进度百分比文字 */
+  #topbar [style*="global-progress"] .w-24 { width: 3rem; } /* 进度条缩短 */
+
+  /* 顶栏 logo 文字缩小 */
+  #topbar a.text-xl { font-size: 1.1rem; }
+  #topbar img.w-9 { width: 2rem; height: 2rem; }
+
+  /* 内容区内边距减小 */
+  #page-container { padding: 1rem 0.75rem !important; }
+
+  /* page-hero 标题缩小、内边距减小 */
+  .page-hero { padding: 1rem 0 1rem; margin-bottom: 1.25rem; }
+  .page-hero h1 { font-size: 1.375rem; }
+  .page-hero p { font-size: 0.875rem; }
+
+  /* 知识卡片：减小内边距 */
+  .knowledge-card { padding: 1rem; margin-bottom: 0.75rem; }
+  .knowledge-card h3 { font-size: 1rem; }
+  .knowledge-card .card-desc { font-size: 0.8125rem; }
+
+  /* 表格：允许横向滚动，字号缩小 */
+  .compare-table { font-size: 0.75rem; }
+  .compare-table th, .compare-table td { padding: 0.5rem 0.625rem; }
+
+  /* 代码块：字号缩小、横向滚动 */
+  .code-block { font-size: 0.7rem; padding: 0.75rem; line-height: 1.5; -webkit-overflow-scrolling: touch; }
+
+  /* 公式块：横向滚动、内边距减小 */
+  .formula-block { padding: 0.75rem; margin: 0.75rem 0; overflow-x: auto; }
+
+  /* SVG 原理图：确保可横向滚动 */
+  .svg-figure { padding: 0.5rem; -webkit-overflow-scrolling: touch; }
+  .svg-figure svg { min-width: 280px; }
+
+  /* 图表容器高度自适应 */
+  .chart-container { height: 280px; }
+  .chart-container-lg { height: 320px; }
+
+  /* 手风琴：内边距减小 */
+  .accordion-header { padding: 0.75rem; font-size: 0.875rem; }
+  .accordion-body-inner { padding: 0 0.75rem 0.75rem; font-size: 0.8125rem; line-height: 1.65; }
+
+  /* 测验：选项内边距减小 */
+  .quiz-card { padding: 1rem; }
+  .quiz-question { font-size: 0.9375rem; }
+  .quiz-option { padding: 0.5rem; font-size: 0.8125rem; }
+
+  /* 步骤列表：缩小 */
+  .step-item { padding: 0.75rem 0; gap: 0.75rem; }
+  .step-item::before { width: 1.5rem; height: 1.5rem; font-size: 0.75rem; }
+
+  /* 信息框：内边距减小 */
+  .info-box { padding: 0.75rem; font-size: 0.8125rem; }
+  .info-box svg { width: 1.125rem; height: 1.125rem; }
+
+  /* 标签页按钮：字号缩小 */
+  .tab-btn { padding: 0.5rem 0.75rem; font-size: 0.8125rem; }
+
+  /* 卡片标签 */
+  .card-tag { font-size: 0.65rem; padding: 0.1rem 0.4rem; }
+
+  /* 内容区通用段落/标题字号 */
+  #page-container h3 { font-size: 1rem; }
+  #page-container h4 { font-size: 0.875rem; }
+  #page-container p { font-size: 0.875rem; line-height: 1.7; }
+  #page-container li { font-size: 0.8125rem; }
+
+  /* 搜索结果弹层：手机上撑满宽度 */
+  #search-results { max-width: calc(100vw - 1.5rem); }
+  /* 移动端展开的搜索框：绝对定位到顶栏下方，避免挤压 */
+  #search-wrap.block { position: absolute; top: 100%; left: 0.75rem; right: 0.75rem; z-index: 50; }
+  #search-wrap.block input { width: 100% !important; }
+
+  /* 回到顶部按钮：缩小 */
+  #back-to-top { padding: 0.625rem; bottom: 1rem; right: 1rem; }
+}
+
+/* ====== 响应式：小手机 (≤480px) ====== */
+@media (max-width: 480px) {
+  /* 极小屏：进一步压缩 */
+  #page-container { padding: 0.75rem 0.5rem !important; }
+  .page-hero h1 { font-size: 1.25rem; }
+  .code-block { font-size: 0.65rem; }
+  .compare-table { font-size: 0.7rem; }
+  .compare-table th, .compare-table td { padding: 0.4rem 0.5rem; }
+  .knowledge-card { padding: 0.75rem; }
+  .chart-container { height: 240px; }
+
+  /* 顶栏：极小屏隐藏进度条整体 */
+  #topbar [style*="global-progress"] { display: none !important; }
 }

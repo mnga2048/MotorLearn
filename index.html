@@ -67,18 +67,18 @@
           <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
         </button>
         <!-- 移动端搜索按钮 -->
-        <button id="mobile-search-btn" class="lg:hidden p-2 rounded-lg transition-colors" onclick="document.getElementById('search-input').focus()">
+        <button id="mobile-search-btn" class="lg:hidden p-2 rounded-lg transition-colors" onclick="var w=document.getElementById('search-wrap');if(w.classList.contains('hidden')){w.classList.remove('hidden');w.classList.add('block');w.querySelector('input').style.width='100%';w.querySelector('input').focus();}else{w.classList.add('hidden');w.classList.remove('block');}">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
         </button>
         <a href="#" class="flex items-center gap-2 text-xl font-bold" style="color:var(--primary)" onclick="navigateTo('home')">
           <img src="assets/icons/头像.jpg" alt="MotorLearn" class="w-9 h-9 rounded-full object-cover border-2" style="border-color:var(--primary)" onerror="this.outerHTML='<svg class=&quot;w-8 h-8&quot; viewBox=&quot;0 0 32 32&quot; fill=&quot;none&quot;><circle cx=&quot;16&quot; cy=&quot;16&quot; r=&quot;14&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot;/><circle cx=&quot;16&quot; cy=&quot;16&quot; r=&quot;6&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot;/><path d=&quot;M16 2v4M16 26v4M2 16h4M26 16h4&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot;/></svg>'">
-          MotorLearn
+          <span class="hidden xs:inline sm:inline">MotorLearn</span>
         </a>
       </div>
-      <div class="flex items-center gap-3">
-        <!-- 搜索 -->
-        <div class="relative hidden sm:block">
-          <input id="search-input" type="text" placeholder="搜索知识点... (Ctrl+K)" class="w-56 pl-9 pr-3 py-1.5 text-sm rounded-lg border focus:outline-none focus:ring-2 focus:border-transparent transition-all" style="border-color:var(--border);background:var(--bg);--tw-ring-color:var(--primary)">
+      <div class="flex items-center gap-2 sm:gap-3">
+        <!-- 搜索（桌面端显示，移动端由顶部按钮触发展开）-->
+        <div id="search-wrap" class="relative hidden sm:block">
+          <input id="search-input" type="text" placeholder="搜索知识点... (Ctrl+K)" class="w-40 sm:w-56 pl-9 pr-3 py-1.5 text-sm rounded-lg border focus:outline-none focus:ring-2 focus:border-transparent transition-all" style="border-color:var(--border);background:var(--bg);--tw-ring-color:var(--primary)">
           <svg class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style="color:var(--text-secondary)" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
           <div id="search-results" class="absolute top-full mt-1 w-full rounded-lg shadow-lg border hidden z-50 max-h-80 overflow-y-auto" style="background:var(--bg-card);border-color:var(--border)"></div>
         </div>
