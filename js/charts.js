@@ -607,7 +607,7 @@ print('Try: Kp=1(slow) Kp=10(fast) Kp=50(oscillate)')`;
       let pyodideReady = null;
       async function getPyodide() {
         if (pyodideReady) return pyodideReady;
-        statusEl.textContent = '正在加载 Python 运行时...(首次约10秒)';
+        statusEl.textContent = 'Loading Python runtime...(~10s first time)';
         statusEl.style.color = 'var(--warning)';
         // 动态加载 Pyodide
         if (!window.loadPyodide) {
@@ -620,38 +620,55 @@ print('Try: Kp=1(slow) Kp=10(fast) Kp=50(oscillate)')`;
         }
         pyodideReady = window.loadPyodide({ indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.25.0/full/' });
         const py = await pyodideReady;
-        statusEl.textContent = '加载 scipy/matplotlib 包...';
-        // 直接加载 matplotlib + scipy（无需 micropip）
+        statusEl.textContent = 'Loading scipy/matplotlib...';
         await py.loadPackage(['matplotlib', 'scipy']);
-        // 配置 matplotlib 用 Agg 后端（无界面，保存图片）
-        py.runPython(`import matplotlib; matplotlib.use('Agg')`);
+        // 确保 /tmp 目录存在 + 配置 matplotlib Agg 后端
+        py.runPython(`
+import os
+os.makedirs('/tmp', exist_ok=True)
+import matplotlib
+matplotlib.use('Agg')
+matplotlib.rcParams['font.family'] = 'DejaVu Sans'
+`);
         return py;
       }
 
       async function runCode() {
         const btn = el.querySelector('#psim-run');
         btn.disabled = true;
-        outEl.innerHTML = '<div style="padding:12px;color:var(--text-secondary);font-size:13px">运行中...</div>';
+        outEl.innerHTML = '<div style="padding:12px;color:var(--text-secondary);font-size:13px">Running...</div>';
         try {
           const py = await getPyodide();
-          // 把 stdout 重定向到 JS
-          py.setStdout({ batched: (s) => { outEl.innerHTML += `<div style="font-family:Consolas;font-size:12px;padding:2px 4px">${s.replace(/</g,'&lt;')}</div>`; } });
           outEl.innerHTML = '';
+          // 用 Python 侧 io.StringIO 捕获 print 输出
+          py.setStdout({ batched: (s) => {
+            outEl.innerHTML += '<div style="font-family:Consolas;font-size:12px;padding:2px 4px;color:var(--text-secondary)">' + s.replace(/</g,'&lt;').replace(/\n/g,'<br>') + '</div>';
+          }});
+          // 先删除旧图片（防止上次失败残留）
+          try { py.FS.unlink('/tmp/sim_out.png'); } catch(e) {}
+          // 执行用户代码
           await py.runPythonAsync(codeEl.value);
-          // 显示保存的图片（FS.readFile 读二进制需转 base64）
-          const bytes = py.FS.readFile('/tmp/sim_out.png');  // 返回 Uint8Array
-          let binStr = '';
-          const chunk = 0x8000;
-          for (let i = 0; i < bytes.length; i += chunk) {
-            binStr += String.fromCharCode.apply(null, bytes.subarray(i, Math.min(i + chunk, bytes.length)));
+          // 尝试读取图片
+          let hasImg = false;
+          try {
+            const bytes = py.FS.readFile('/tmp/sim_out.png');
+            let binStr = '';
+            for (let i = 0; i < bytes.length; i += 0x8000) {
+              binStr += String.fromCharCode.apply(null, bytes.subarray(i, Math.min(i + 0x8000, bytes.length)));
+            }
+            const imgB64 = btoa(binStr);
+            outEl.innerHTML += '<img src="data:image/png;base64,' + imgB64 + '" style="max-width:100%;display:block;margin:8px auto;border-radius:6px">';
+            hasImg = true;
+          } catch(e) {
+            // 没有图片（代码可能只 print 不画图）
           }
-          const imgB64 = btoa(binStr);
-          outEl.innerHTML = `<img src="data:image/png;base64,${imgB64}" style="max-width:100%;display:block;margin:0 auto">`;
-          statusEl.textContent = '运行完成 ✓';
+          if (!hasImg) outEl.innerHTML += '<div style="padding:8px;font-size:12px;color:var(--text-secondary)">No image output (code ran but did not save a plot)</div>';
+          statusEl.textContent = 'Done ✓';
           statusEl.style.color = 'var(--success)';
         } catch (err) {
-          outEl.innerHTML += `<div style="color:var(--danger);font-family:Consolas;font-size:12px;padding:8px">${String(err).replace(/</g,'&lt;')}</div>`;
-          statusEl.textContent = '运行出错，看输出区';
+          const msg = String(err).replace(/</g,'&lt;');
+          outEl.innerHTML += '<div style="color:var(--danger);font-family:Consolas;font-size:12px;padding:8px;border:1px solid var(--danger);border-radius:6px;margin:4px">Error: ' + msg + '</div>';
+          statusEl.textContent = 'Error - check output';
           statusEl.style.color = 'var(--danger)';
         } finally {
           btn.disabled = false;

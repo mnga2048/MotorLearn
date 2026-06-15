@@ -591,7 +591,7 @@
     const overlay = document.getElementById('sidebar-overlay');
     if (!sidebar) return;
     mobileSidebarOpen = !mobileSidebarOpen;
-    sidebar.style.transform = mobileSidebarOpen ? '' : 'translateX(-100%)';
+    sidebar.style.transform = mobileSidebarOpen ? 'translateX(0)' : 'translateX(-100%)';
     overlay?.classList.toggle('hidden', !mobileSidebarOpen);
   });
 
