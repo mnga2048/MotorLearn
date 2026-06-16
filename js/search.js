@@ -13,6 +13,10 @@ const Search = {
       // 进阶篇知识点：详情页就是 section.id 本身
       this.index.push({ id: s.id, title: s.title, desc: s.desc, tags: s.tags || [], target: s.id });
     });
+    MotorData.robotics?.sections?.forEach(s => {
+      // 机器人应用篇：详情页就是 section.id 本身
+      this.index.push({ id: s.id, title: s.title, desc: s.desc, tags: s.tags || [], target: s.id });
+    });
     Object.entries(MotorData.motorTypes || {}).forEach(([key, m]) => {
       // 电机概览：详情页是电机 key
       this.index.push({ id: key, title: m.title, desc: m.overview.substring(0, 80) + '...', tags: [key], target: key });

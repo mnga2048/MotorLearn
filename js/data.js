@@ -412,6 +412,67 @@ TIM_HandleTypeDef htim1;
             <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
             <div><strong>电机控制中常用PI而非PID</strong>：在电流环控制中，由于电流采样噪声较大，微分项(D)通常会放大噪声，因此电机控制中的电流环几乎都只使用PI控制。</div>
           </div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">位置式 vs 增量式：两种PID的根本区别</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            这两个概念是<strong>从理论到代码的关键分水岭</strong>。完整C代码实现见 <a href="#" onclick="navigateTo('advanced-pid-impl');return false;" style="color:var(--primary)">PID的C语言实现</a>，这里先理解本质：
+          </p>
+          <div class="overflow-x-auto"><table class="compare-table">
+            <thead><tr><th>特性</th><th>位置式PID</th><th>增量式PID</th></tr></thead>
+            <tbody>
+              <tr><td class="font-medium">输出含义</td><td>绝对值（如PWM占空比）</td><td>变化量Δu（如步进脉冲增量）</td></tr>
+              <tr><td class="font-medium">积分项</td><td>需要累加历史误差</td><td>无显式积分（天然无累积）</td></tr>
+              <tr><td class="font-medium">积分饱和</td><td>需额外抗饱和处理</td><td>天然不饱和</td></tr>
+              <tr><td class="font-medium">掉电影响</td><td>需保存integral</td><td>无累积，重启无冲击</td></tr>
+              <tr><td class="font-medium">典型应用</td><td>电流环、温度、舵机角度</td><td>步进电机、伺服位置环</td></tr>
+            </tbody>
+          </table></div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">积分饱和（Windup）：为什么PID会"失控"</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            <strong>现象</strong>：当输出到达限幅（如PWM满量程）后，误差仍然存在，积分项持续累加。等误差反向时，巨大的积分值需要很久才能"卸"下来，导致<strong>严重超调</strong>。
+          </p>
+          <div class="step-list">
+            <div class="step-item"><div><strong>钳位法（Clamping）</strong>：输出饱和时停止积分累加。实现最简单、效果稳定，工业首选。</div></div>
+            <div class="step-item"><div><strong>反算法（Back-calculation）</strong>：把饱和量按系数反馈回积分项。更平滑但需调额外参数。</div></div>
+            <div class="step-item"><div><strong>条件积分</strong>：误差大时禁用积分，仅小误差时启用。避免大偏差时积分失控。</div></div>
+          </div>
+          <div class="info-box tip"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>最实用的判断</strong>：如果系统超调严重且恢复极慢，几乎都是积分饱和。加钳位法通常立竿见影。完整C代码见 <a href="#" onclick="navigateTo('advanced-pid-impl');return false;" style="color:var(--primary)">PID实现篇第四节</a>。</div></div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">PID调参方法：从"乱试"到"有章法"</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            参数选择是PID的核心难点。下面三种方法从简单到专业递进，配合 <a href="#" onclick="navigateTo('engineering-validation');return false;" style="color:var(--primary)">工程验证方法论</a> 的阶跃响应验证：
+          </p>
+
+          <h4 class="font-medium mt-4 mb-2">方法一：手动试凑法（最常用）</h4>
+          <div class="step-list">
+            <div class="step-item"><div><strong>先P后I再D</strong>：Kp从0开始增大，直到系统开始<strong>等幅振荡</strong>，然后回退到振荡消失的60%。</div></div>
+            <div class="step-item"><div><strong>加Ki</strong>：Ki从小值开始增大，直到<strong>稳态误差消除</strong>且不超调。Ki过大会振荡。</div></div>
+            <div class="step-item"><div><strong>加Kd</strong>（可选）：Kd从0增大，直到<strong>超调减小</strong>。Kd过大会引入噪声抖动。电机电流环通常Kd=0。</div></div>
+          </div>
+
+          <h4 class="font-medium mt-4 mb-2">方法二：Ziegler-Nichols 法（半自动）</h4>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            先只加P，找出系统的<strong>临界增益Ku</strong>（刚出现等幅振荡的Kp）和<strong>临界周期Tu</strong>（振荡周期），然后按公式算PID参数：
+          </p>
+          <div class="formula-block">
+            $K_p = 0.6 K_u, \\quad K_i = \\frac{1.2 K_u}{T_u}, \\quad K_d = \\frac{0.075 K_u T_u}{1}$
+            <div class="text-sm text-gray-500 mt-2">PI版：Kp=0.45Ku, Ki=0.54Ku/Tu</div>
+          </div>
+          <div class="info-box warning"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg><div><strong>Z-N法注意</strong>：它给出的是<strong>起点</strong>不是终点，通常超调偏大（25%），实际还要微调。安全敏感系统（如伺服位置环）慎用，因为它要求系统<strong>到达临界振荡</strong>。</div></div>
+
+          <h4 class="font-medium mt-4 mb-2">方法三：仿真/Matlab自动调参</h4>
+          <div class="info-box info"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div>用 <a href="#" onclick="navigateTo('matlab-sim');return false;" style="color:var(--primary)">Matlab仿真</a> 里的 <code>pidtune</code> 一行命令自动算出最优参数；或在仿真里用 <code>for</code> 循环画多条阶跃响应对比选最佳。这是<strong>最科学</strong>的方式，也是工业界标配。</div></div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">参数偏大偏小的现象速查</h3>
+          <div class="overflow-x-auto"><table class="compare-table">
+            <thead><tr><th>参数</th><th>偏小</th><th>偏大</th></tr></thead>
+            <tbody>
+              <tr><td class="font-medium">Kp</td><td>响应慢、稳态误差大</td><td>超调、振荡</td></tr>
+              <tr><td class="font-medium">Ki</td><td>稳态误差消不掉</td><td>超调、积分饱和、恢复慢</td></tr>
+              <tr><td class="font-medium">Kd</td><td>超调大</td><td>噪声放大、高频抖动</td></tr>
+            </tbody>
+          </table></div>
         `,
       },
       {
@@ -3824,12 +3885,14 @@ Servo_t joint_base, joint_arm, joint_hand;
     headers: ['参数', '有刷直流', '无刷BLDC', '步进电机', '伺服电机', '舵机'],
     rows: [
       ['控制方式', '开环(PWM)', '闭环(FOC/六步)', '开环(脉冲)', '闭环(PID/FOC)', '内置闭环'],
+      ['反馈类型', '无', '霍尔/编码器', '无(开环)', '高精度编码器', '电位器'],
       ['定位精度', '低', '中-高', '高(可能丢步)', '极高', '中'],
-      ['效率', '60-75%', '85-95%', '50-80%', '80-92%', '50-60%'],
+      ['效率', '60-75%', '85-95%', '30-50%', '80-92%', '30-50%'],
       ['转速范围', '低-中', '宽', '低', '宽', 'N/A(角度)'],
       ['扭矩特性', '中', '高且平坦', '低速高', '高', '中'],
+      ['典型驱动芯片', 'L298N/TB6612', 'ESC/ODrive/VESC', 'A4988/TMC2209', '专用伺服驱动器', 'PWM信号线'],
+      ['价格范围', '¥5-30', '¥30-200', '¥20-80', '¥500-5000', '¥5-30'],
       ['寿命', '短(电刷磨损)', '长', '长', '长', '中(电位器磨损)'],
-      ['成本', '低', '中-高', '中', '高', '低'],
       ['控制复杂度', '简单', '复杂', '简单', '复杂', '极简'],
       ['典型应用', '玩具、家电', '无人机、电动工具', '3D打印、CNC', '工业机器人', 'RC模型、机器人关节'],
     ],
@@ -3847,35 +3910,59 @@ Servo_t joint_base, joint_arm, joint_hand;
           '电机学（各类电机结构与原理）',
           '推荐教材：《电机与拖动》刘锦波',
         ],
+        exercises: [
+          '用万用表测量一个旧电机的电阻、空载电流，估算其额定参数',
+          '手转电机+示波器看反电动势波形，判断是有刷还是无刷',
+        ],
+        links: ['beginner-em', 'beginner-params', 'beginner-classify'],
       },
       {
-        title: '第二阶段：控制理论',
+        title: '第二阶段：控制理论 + 单片机入门',
         duration: '2-4个月',
         items: [
-          '经典控制理论（PID、传递函数）',
-          'FOC原理（Clarke/Park/SVPWM）',
+          '经典控制理论（PID、传递函数、阶跃响应）',
+          'PWM驱动 + H桥电路',
+          '编码器/霍尔反馈原理',
           '推荐资源：SimpleFOC中文官网 + B站视频',
         ],
+        exercises: [
+          'STM32+L298N让有刷电机匀速转，PWM调4档速度',
+          '接编码器，串口输出实时RPM，验证M法测速',
+          '用Matlab沙盒或本地仿真验证PID参数，再移植到MCU',
+        ],
+        links: ['beginner-drive', 'advanced-pid', 'advanced-pid-impl', 'encoder', 'matlab-sim'],
       },
       {
-        title: '第三阶段：嵌入式实战',
+        title: '第三阶段：电机控制实战',
         duration: '3-6个月',
         items: [
-          'Arduino + L298N 驱动有刷电机',
           'SimpleFOC + 云台电机 实现FOC闭环',
-          'Arduino + A4988 控制步进电机',
+          'Arduino + A4988 控制步进电机（含加减速）',
+          'BLDC六步换向 + 霍尔传感器',
           '推荐平台：Arduino → STM32G4',
         ],
+        exercises: [
+          '步进电机走固定步数，用编码器验证是否丢步（量化精度）',
+          'FOC开环让电机平滑转→闭环Id=0→加力矩控制，逐级验证',
+          '用串口输出Id/Iq波形，对照工程验证方法论的指标判定',
+        ],
+        links: ['bldc-commutation', 'foc-impl', 'current-sense', 'engineering-validation'],
       },
       {
-        title: '第四阶段：进阶方向',
+        title: '第四阶段：机器人与系统集成',
         duration: '持续学习',
         items: [
+          '运动学（正逆解）+ 轨迹规划',
+          '多轴协调 + ROS/micro-ROS 桥接',
           '无感控制（SMO、HFI）',
-          '模型预测控制（MPC）',
-          'MATLAB/Simulink 仿真',
-          '机器人关节控制 / 新能源汽车电驱',
+          '模型预测控制（MPC）/ 新能源汽车电驱',
         ],
+        exercises: [
+          '搭建2-3自由度机械臂，用逆运动学控制末端走直线',
+          'MCU做实时位置环 + 上位机Python做轨迹规划，串口通信',
+          '尝试无感启动：预定位→强拖→切SMO闭环',
+        ],
+        links: ['kinematics', 'trajectory', 'mcu-ros', 'matlab-sim', 'advanced-sensorless'],
       },
     ],
     books: [
@@ -3939,6 +4026,54 @@ Servo_t joint_base, joint_arm, joint_hand;
       formula: 'V_avg = V_cc × Duty',
       calc: (v) => (v.vcc * v.duty / 100).toFixed(2),
       unit: 'V',
+    },
+    {
+      id: 'kt-ke',
+      title: '转矩常数 Kt / 反电动势常数 Ke 换算',
+      fields: [
+        { id: 'ke', label: '反电动势常数 Ke (V·s/rad)', default: '0.01' },
+      ],
+      formula: 'Kt = 9.549 × Ke  (SI单位下 Kt ≈ Ke)',
+      calc: (v) => (v.ke * 9.549).toFixed(4),
+      unit: 'N·m/A',
+    },
+    {
+      id: 'encoder-rpm',
+      title: '编码器脉冲→转速 (M法)',
+      fields: [
+        { id: 'ppr', label: '编码器PPR (脉冲/转)', default: '1000' },
+        { id: 'mult', label: '倍频数', default: '4' },
+        { id: 'pulses', label: '采样周期内脉冲数', default: '800' },
+        { id: 'period', label: '采样周期 (秒)', default: '0.01' },
+      ],
+      formula: 'RPM = (脉冲数 / (PPR×倍频)) / 周期 × 60',
+      calc: (v) => (v.pulses / (v.ppr * v.mult) / v.period * 60).toFixed(1),
+      unit: 'RPM',
+    },
+    {
+      id: 'gear-ratio',
+      title: '减速比 → 输出扭矩/转速',
+      fields: [
+        { id: 'ratio', label: '减速比 (如10=10:1)', default: '10' },
+        { id: 'eff', label: '减速机效率 (%)', default: '90' },
+        { id: 'in_torque', label: '输入扭矩 (N·m)', default: '0.5' },
+      ],
+      formula: 'T_out = T_in × ratio × η ;  n_out = n_in / ratio',
+      calc: (v) => (v.in_torque * v.ratio * v.eff / 100).toFixed(2),
+      unit: 'N·m (输出扭矩)',
+    },
+    {
+      id: 'servo-ccr',
+      title: '舵机角度→PWM CCR值',
+      fields: [
+        { id: 'arr', label: '定时器ARR值', default: '20000' },
+        { id: 'min_us', label: '0°脉宽 (μs)', default: '500' },
+        { id: 'max_us', label: '180°脉宽 (μs)', default: '2500' },
+        { id: 'angle', label: '目标角度 (°)', default: '90' },
+      ],
+      formula: 'CCR = (min + (max-min) × angle/180) / 20000 × ARR',
+      calc: (v) => ((v.min_us + (v.max_us - v.min_us) * v.angle / 180) / 20000 * v.arr).toFixed(0),
+      unit: 'CCR值',
     },
   ],
 };
@@ -4073,6 +4208,11 @@ const QuizData = {
     { question: '下桥臂采样时，为什么必须在PWM周期中点采样？', options: ['中点电压最稳定', '此时下桥MOS导通电流稳定，避开开关瞬间的噪声尖峰', '中点ADC精度高', '减少CPU占用'], answer: 1, explanation: '下桥MOS导通期间电流才流过shunt，PWM开关瞬间会产生巨大共模跳变和毛刺。在周期中点采样既保证MOS导通(有电流)，又避开开关边沿(无噪声)。STM32用TIM TRGO触发ADC实现自动同步。' },
     { question: '电流采样系统上电后必须做的第一步是？', options: ['直接启动电机', '零电流校准——电机断电采多次取平均作为ADC偏置', '调PID参数', '测PWM频率'], answer: 1, explanation: '运放和ADC有零点偏移(offset)，零电流时读数不是理想VCC/2。这个偏移若不去除，会被当成直流电流污染整个FOC。校准：电机断电→采1024次取平均→存为offset→正式采样时减去。温度漂移大时需周期重校。' },
   ],
+  'matlab-sim': [
+    { question: 'Matlab中建立传递函数的核心函数是？', options: ['plot()', 'tf(num, den)', 'matrix()', 'sim()'], answer: 1, explanation: 'tf(num, den) 用分子分母多项式系数建立传递函数。num/den 是降幂排列的系数向量，如 tf([1],[1 2 5]) 表示 G(s)=1/(s²+2s+5)。配合 step(G) 画阶跃响应、feedback(G,1) 求闭环，是控制仿真三板斧。' },
+    { question: '仿真调PID时，想同时对比多组Kp的响应，最有效的做法是？', options: ['手动改参数运行多次截图对比', '用for循环画多条step曲线在同一张图上', '每次只改一个参数', '用Excel记录'], answer: 1, explanation: 'for kp=[1 5 10 20] 循环里依次 feedback(C*G,1) + step，hold on 叠加画线。一次运行5条曲线对比，零成本看出哪个Kp响应快/超调大/振荡——这正是工程验证方法论强调的"仿真里零成本试错"。' },
+    { question: 'Matlab索引从几开始？', options: ['0', '1', '-1', '任意'], answer: 1, explanation: 'Matlab索引从1开始（与C/Python的从0不同），这是新手最常踩的坑。v(1)是第一个元素。另外注释用%（不是//），语句末分号表示不显示结果。' },
+  ],
 };
 
 // 收集所有知识点ID（用于进度追踪）
@@ -4080,6 +4220,7 @@ const AllKnowledgeIds = (() => {
   const ids = [];
   if (MotorData.beginner?.sections) MotorData.beginner.sections.forEach(s => ids.push(s.id));
   if (MotorData.advanced?.sections) MotorData.advanced.sections.forEach(s => ids.push(s.id));
+  if (MotorData.robotics?.sections) MotorData.robotics.sections.forEach(s => ids.push(s.id));
   Object.keys(MotorData.motorTypes).forEach(key => {
     const m = MotorData.motorTypes[key];
     ids.push('motor-' + key);

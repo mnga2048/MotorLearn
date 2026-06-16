@@ -347,6 +347,14 @@
             <div><h3 class="text-base">${phase.title}</h3><span class="text-xs" style="color:var(--text-secondary)">${phase.duration}</span></div>
           </div>
           <div class="step-list">${phase.items.map(item => `<div class="step-item"><div>${item}</div></div>`).join('')}</div>
+          ${phase.exercises ? `<div class="mt-3 pt-3" style="border-top:1px solid var(--border)">
+            <div class="text-sm font-medium mb-2" style="color:var(--primary)">🔧 动手作业</div>
+            <div class="step-list">${phase.exercises.map(ex => `<div class="step-item"><div class="text-sm">${ex}</div></div>`).join('')}</div>
+          </div>` : ''}
+          ${phase.links ? `<div class="mt-3 pt-3 flex flex-wrap gap-2" style="border-top:1px solid var(--border)">
+            <span class="text-xs" style="color:var(--text-secondary)">本站相关：</span>
+            ${phase.links.map(id => { const s = findSection(id); return s ? `<button class="text-xs px-2 py-1 rounded-full transition-colors" style="background:rgba(194,136,62,0.1);color:var(--primary)" onclick="navigateTo('${id}')">${s.title}</button>` : ''; }).join('')}
+          </div>` : ''}
         </div>`).join('')}
       </div>
       <h2 class="text-xl font-semibold mb-4">推荐书单</h2>
@@ -394,6 +402,7 @@
     const items = [];
     MotorData.beginner?.sections?.forEach(s => items.push({ id: s.id, title: s.title, icon: s.icon }));
     MotorData.advanced?.sections?.forEach(s => items.push({ id: s.id, title: s.title, icon: s.icon }));
+    MotorData.robotics?.sections?.forEach(s => items.push({ id: s.id, title: s.title, icon: s.icon }));
     Object.entries(MotorData.motorTypes).forEach(([k, m]) => items.push({ id: 'motor-' + k, title: m.title, icon: m.icon }));
     return items.map(item => {
       const s = Progress.get(item.id);

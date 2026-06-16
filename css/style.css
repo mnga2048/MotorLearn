@@ -417,6 +417,11 @@
   .home-feature-card .feature-label { font-size: 0.85rem; }
   .home-feature-card .feature-desc { font-size: 0.75rem; }
   .home-intro p { font-size: 0.95rem; line-height: 1.75; }
+
+  /* Python沙盒：手机端变单列 */
+  .psim-grid { grid-template-columns: 1fr !important; }
+  /* 校验器结果标签：手机端缩小 */
+  .val-result-title { width: 90px; font-size: 0.7rem; }
 }
 
 /* ====== 响应式：小手机 (≤480px) ====== */

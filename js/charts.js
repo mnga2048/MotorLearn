@@ -589,7 +589,7 @@ print('Try: Kp=1(slow) Kp=10(fast) Kp=50(oscillate)')`;
           <button id="psim-reset" style="padding:6px 14px;background:var(--bg-card);color:var(--text-secondary);border:1px solid var(--border);border-radius:6px;font-size:13px;cursor:pointer">重置代码</button>
           <span id="psim-status" style="font-size:12px;color:var(--text-secondary)">点击运行加载Python环境(首次约10秒)</span>
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div class="psim-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
           <div>
             <div style="font-size:12px;color:var(--text-secondary);margin-bottom:4px">Python 代码（可编辑）：</div>
             <textarea id="psim-code" style="width:100%;height:340px;font-family:Consolas,monospace;font-size:12px;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg-card);color:var(--text);resize:vertical;line-height:1.5"></textarea>
