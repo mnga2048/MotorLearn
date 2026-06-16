@@ -44,6 +44,7 @@ const MotorData = {
       children: [
         { id: 'kinematics', label: '运动学入门' },
         { id: 'trajectory', label: '轨迹规划与多轴协调' },
+        { id: 's-curve', label: 'S曲线加减速专题' },
         { id: 'mcu-ros', label: 'MCU与Linux/ROS桥接' },
         { id: 'matlab-sim', label: 'Matlab电机仿真入门' },
       ]
@@ -2298,6 +2299,178 @@ Debug_Sample_t g_dbg_buf[DBG_BUF_SIZE];
         `,
       },
       {
+        id: 's-curve',
+        title: 'S曲线加减速专题',
+        desc: 'S曲线原理、参数设置、科学验证方法、适用场景——从"乱改参数"到"精确控制"',
+        icon: '〰️',
+        tags: ['运动控制', '加减速', '必学'],
+        content: `
+          <h3 class="text-lg font-semibold mb-3">什么是S曲线，和梯形曲线有什么区别</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-3">
+            运动控制里，电机从静止到目标位置不能瞬间跳变（会丢步/过冲），需要一条<strong>速度-时间曲线</strong>来规划加速和减速过程。两种主流方案：
+          </p>
+          <div class="overflow-x-auto mb-3"><table class="compare-table">
+            <thead><tr><th>对比</th><th>梯形曲线</th><th>S曲线</th></tr></thead>
+            <tbody>
+              <tr><td class="font-medium">速度形状</td><td>梯形（加速→匀速→减速）</td><td>S形（加加速→匀加速→减加速→匀速→…）</td></tr>
+              <tr><td class="font-medium">加速度</td><td>突变（瞬间从0跳到a_max）</td><td>连续变化（jerk有限，无突变）</td></tr>
+              <tr><td class="font-medium">加加速度 jerk</td><td>无穷大（理论上的冲击）</td><td>有限值（可控的"柔和度"）</td></tr>
+              <tr><td class="font-medium">机械冲击</td><td>有"咯噔"感</td><td>平滑无冲击</td></tr>
+              <tr><td class="font-medium">实现复杂度</td><td>简单（分段线性）</td><td>复杂（7段式分段）</td></tr>
+              <tr><td class="font-medium">典型应用</td><td>普通3D打印机、简单定位</td><td>机械臂、CNC、高速SCARA</td></tr>
+            </tbody>
+          </table></div>
+          <div class="info-box info"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>S曲线的核心是"jerk可控"</strong>：梯形曲线的加速度瞬间从0跳到最大值，这个"加速度的加速度"（jerk=加加速度）理论上是无穷大，对机械产生冲击。S曲线通过限制 jerk，让加速度本身也平滑过渡——就像开车时缓缓踩油门而不是一脚到底。</div></div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">S曲线的三个核心参数怎么设置</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            S曲线由<strong>三个参数</strong>完全决定，理解它们才能正确配置：
+          </p>
+          <div class="step-list">
+            <div class="step-item"><div><strong>① 最大速度 v_max</strong>：电机运动过程中的最高速度。设太高会丢步（步进）或过流（无刷），设太低运动太慢。<strong>设置方法</strong>：从低速开始，逐步增大直到出现异常（丢步/啸叫/过流），取异常前速度的 70-80% 作为 v_max。</div></div>
+            <div class="step-item"><div><strong>② 最大加速度 a_max</strong>：加速/减速阶段的最大加速度。决定"冲劲"大小。设太大启动顿挫、设太小响应慢。<strong>设置方法</strong>：从 a_max = v_max / 0.1s 起步（即0.1秒加速到最高速），逐步调整直到启停平滑且不丢步。</div></div>
+            <div class="step-item"><div><strong>③ 加加速度 jerk（j）</strong>：加速度的变化率。这是<strong>S曲线区别于梯形的唯一参数</strong>。jerk 越小→曲线越"S"（柔和）；jerk 越大→越接近梯形（生硬）。<strong>典型值</strong>：jerk = a_max × (5~20)，即用 0.05~0.2 秒完成加速度从0到a_max的过渡。</div></div>
+          </div>
+          <div class="info-box warning"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg><div><strong>jerk=无穷大就退化成梯形</strong>：如果你的 jerk 设得非常大，加速度瞬间到位，S曲线就变回了梯形。所以<strong>调S曲线本质就是调 jerk</strong>：从大值开始减小，直到肉眼/波形看不到加速度突变。</div></div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">怎么验证S曲线生效了（不是嘴上说"看起来平滑"）</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            回顾 <a href="#" onclick="navigateTo('engineering-validation');return false;" style="color:var(--primary)">工程验证方法论</a>的核心原则：<strong>看得见的才能调</strong>。验证S曲线需要三个层次的数据：
+          </p>
+
+          <h4 class="font-medium mt-4 mb-2">验证1：速度曲线是否真的是"S"形</h4>
+          <div class="code-block"><span class="code-comment">/* 每个控制周期输出当前目标速度，上位机画图 */</span>
+<span class="code-comment">// 在轨迹更新函数里加一行串口输出</span>
+<span class="code-keyword">void</span> <span class="code-func">Traj_Update</span>(...) {
+  <span class="code-comment">// ... 原有轨迹计算 ...</span>
+  <span class="code-keyword">float</span> v_now = <span class="code-func">GetCurrentVelocity</span>();   <span class="code-comment">// 当前目标速度</span>
+  <span class="code-func">printf</span>(<span class="code-string">"%.3f,%.3f\\n"</span>, g_time, v_now);   <span class="code-comment">// CSV输出到上位机</span>
+}
+<span class="code-comment">// 上位机用 Serial Studio 接串口，自动画速度-时间曲线
+// 理想S曲线：加速段是S形（先弯后直再弯），不是直线
+// 如果画出来是直线加速 → jerk设太大 = 退化成梯形了 */</span></div>
+
+          <h4 class="font-medium mt-4 mb-2">验证2：加速度是否连续（无突变）</h4>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            输出加速度（速度的差分），看它是否从0平滑上升到a_max再平滑下降。如果是梯形，加速度图是方波（突变）；S曲线应该是<strong>梯形或钟形</strong>（连续）。
+          </p>
+          <div class="code-block"><span class="code-comment">/* 计算并输出加速度（速度的数值微分） */</span>
+<span class="code-keyword">float</span> v_prev = <span class="code-number">0</span>;
+<span class="code-keyword">void</span> <span class="code-func">Traj_Update</span>(...) {
+  <span class="code-keyword">float</span> v_now = <span class="code-func">GetCurrentVelocity</span>();
+  <span class="code-keyword">float</span> accel = (v_now - v_prev) / dt;     <span class="code-comment">// 加速度 = Δv/Δt</span>
+  <span class="code-func">printf</span>(<span class="code-string">"%.3f,%.3f,%.3f\\n"</span>, g_time, v_now, accel);
+  v_prev = v_now;
+}
+<span class="code-comment">// 上位机看加速度曲线：
+// 梯形 → 加速度是方波(瞬间跳变)
+// S曲线 → 加速度是梯形或钟形(连续变化) ← 这才是对的 */</span></div>
+
+          <h4 class="font-medium mt-4 mb-2">验证3：实际位置是否紧贴目标位置</h4>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            这是最根本的验证——不管曲线长什么样，最终要看<strong>实际走了多少</strong>。用编码器读实际位置，和目标位置画在同一张图上：
+          </p>
+          <div class="overflow-x-auto"><table class="compare-table">
+            <thead><tr><th>看什么</th><th>正常</th><th>异常（参数不对）</th></tr></thead>
+            <tbody>
+              <tr><td class="font-medium">目标vs实际位置</td><td>两条线几乎重合</td><td>实际落后目标很多 = 加速度太大/丢步</td></tr>
+              <tr><td class="font-medium">停止时位置</td><td>精准停在目标，误差≈0</td><td>超过目标 = 减速段不够；不到目标 = 丢步</td></tr>
+              <tr><td class="font-medium">重复精度</td><td>走10次同一目标，偏差&lt;1个最小步</td><td>每次停的位置不同 = 有随机丢步</td></tr>
+              <tr><td class="font-medium">加速度曲线</td><td>连续无突变（S形）</td><td>有方波跳变 = jerk太大，退化成梯形</td></tr>
+            </tbody>
+          </table></div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">S曲线的科学测试流程（4步法）</h3>
+          <div class="step-list">
+            <div class="step-item"><div><strong>第1步：测最大速度 v_max</strong>。发固定速度指令，逐步增大直到丢步/过流。v_max = 异常前速度 × 0.7。</div></div>
+            <div class="step-item"><div><strong>第2步：测最大加速度 a_max</strong>。固定 v_max，逐步增大 a_max。观察启动/停止时是否丢步或过冲。a_max = 异常前 × 0.6。</div></div>
+            <div class="step-item"><div><strong>第3步：调 jerk</strong>。从 jerk = a_max × 100（接近梯形）开始减小。同时<strong>串口输出加速度波形</strong>，直到加速度从方波变成连续曲线。</div></div>
+            <div class="step-item"><div><strong>第4步：综合验证</strong>。用编码器读实际位置 vs 目标位置，确认无丢步、无过冲、加速度连续。重复走10次测重复精度。</div></div>
+          </div>
+          <div class="info-box tip"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>改一个参数就够了</strong>：v_max 和 a_max 确定后，真正需要反复调的只有 <strong>jerk</strong>。从大到小减，每减一次跑一次测试，看加速度波形。 jerk 太小运动会很"肉"（加速极慢），太大退化成梯形。找到"加速度连续且运动不过慢"的平衡点即可。</div></div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">什么时候该用S曲线，什么时候梯形就够了</h3>
+          <div class="overflow-x-auto mb-3"><table class="compare-table">
+            <thead><tr><th>场景</th><th>推荐</th><th>理由</th></tr></thead>
+            <tbody>
+              <tr><td class="font-medium">3D打印机/雕刻机</td><td>梯形够用</td><td>速度不高，少量冲击可接受，CPU算力有限</td></tr>
+              <tr><td class="font-medium">步进电机低速定位</td><td>梯形够用</td><td>低速冲击小，梯形实现简单</td></tr>
+              <tr><td class="font-medium">机械臂关节运动</td><td><strong>必须S曲线</strong></td><td>关节惯性大，梯形冲击会损坏减速器/产生振动</td></tr>
+              <tr><td class="font-medium">CNC高速加工</td><td><strong>必须S曲线</strong></td><td>加工表面质量要求高，冲击会留刀痕</td></tr>
+              <tr><td class="font-medium">高速SCARA/Delta</td><td><strong>必须S曲线</strong></td><td>急停急起频繁，梯形会激发机械共振</td></tr>
+              <tr><td class="font-medium">伺服位置环</td><td><strong>建议S曲线</strong></td><td>伺服响应快，梯形突变易激发高频振荡</td></tr>
+              <tr><td class="font-medium">简单传送带/风扇</td><td>不需要加减速</td><td>无精确定位需求，直接恒速</td></tr>
+            </tbody>
+          </table></div>
+          <div class="info-box info"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>判断口诀</strong>：① 有机械臂/减速器/连杆？→ S曲线（保护机械）。② 运动速度&gt;1000RPM或加减速频繁？→ S曲线（避免共振）。③ 只是慢慢转个角度、不在意冲击？→ 梯形够用。④ 不确定？先上梯形跑通，再换S曲线优化——梯形是S曲线的退化特例(jerk=∞)，切换成本低。</div></div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">S曲线的7段式结构（进阶理解）</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            完整的S曲线运动分<strong>7段</strong>（加速3段+匀速1段+减速3段）。不是每次都走满7段——短行程时匀速段可能为0（三角S曲线）：
+          </p>
+          <div class="step-list">
+            <div class="step-item"><div><strong>段1-3（加速）</strong>：加加速段(jerk>0，a从0增到a_max) → 匀加速段(a=a_max) → 减加速段(jerk<0，a从a_max减到0)。速度曲线呈S形。</div></div>
+            <div class="step-item"><div><strong>段4（匀速）</strong>：v=v_max 恒速运动。短行程时此段为0。</div></div>
+            <div class="step-item"><div><strong>段5-7（减速）</strong>：和加速对称，速度从v_max平滑减到0。</div></div>
+          </div>
+          <div class="info-box warning"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg><div><strong>短行程陷阱</strong>：如果总距离不够走完7段（v_max还没到就要减速），曲线退化为"三角S曲线"（无匀速段），甚至"双S曲线"（a_max也没到）。代码里必须处理这些边界情况，否则位置算错。<strong>开源库AccelStepper、GRBL的motion control都处理了这个</strong>，建议参考。</div></div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">S曲线代码实现要点</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            完整的7段S曲线代码较长（~200行C）。这里给核心思路，完整实现参考开源项目：
+          </p>
+          <div class="code-block"><span class="code-comment">/* S曲线核心：给定时间t，求当前速度v
+ * 7段判断 → 每段用不同的积分公式
+ * 这里只展示加速段（段1-3）的核心逻辑 */</span>
+
+<span class="code-keyword">typedef struct</span> {
+  <span class="code-keyword">float</span> v_max, a_max, jerk;   <span class="code-comment">// 三个参数</span>
+  <span class="code-keyword">float</span> t_jerk;               <span class="code-comment">// jerk段时长 = a_max / jerk</span>
+  <span class="code-keyword">float</span> t_accel;              <span class="code-comment">// 匀加速段时长</span>
+  <span class="code-keyword">float</span> t_total;              <span class="code-comment">// 加速总时长</span>
+} SCurve_t;
+
+<span class="code-comment">/* 初始化：根据v_max/a_max/jerk预计算各段时长 */</span>
+<span class="code-keyword">void</span> <span class="code-func">SCurve_Init</span>(SCurve_t *s, <span class="code-keyword">float</span> vmax, <span class="code-keyword">float</span> amax, <span class="code-keyword">float</span> j) {
+  s->v_max = vmax; s->a_max = amax; s->jerk = j;
+  s->t_jerk = amax / j;                        <span class="code-comment">// 加加速段时长</span>
+  <span class="code-comment">// 段1+段3的加速量 = 2 × (½ × jerk × t_jerk²) = jerk × t_jerk²</span>
+  <span class="code-keyword">float</span> v_mid = j * s->t_jerk * s->t_jerk;    <span class="code-comment">// 段1+3达到的速度</span>
+  <span class="code-keyword">if</span> (v_mid &lt; vmax) {
+    s->t_accel = (vmax - v_mid) / amax;        <span class="code-comment">// 有匀加速段</span>
+  } <span class="code-keyword">else</span> {
+    s->t_accel = <span class="code-number">0</span>;                            <span class="code-comment">// 三角S曲线，无匀加速段</span>
+  }
+  s->t_total = <span class="code-number">2</span> * s->t_jerk + s->t_accel;       <span class="code-comment">// 加速总时长</span>
+}
+
+<span class="code-comment">/* 给定加速段内的时间t，返回当前速度 */</span>
+<span class="code-keyword">float</span> <span class="code-func">SCurve_VelocityAt</span>(<span class="code-keyword">const</span> SCurve_t *s, <span class="code-keyword">float</span> t) {
+  <span class="code-keyword">float</span> tj = s->t_jerk;
+  <span class="code-keyword">if</span> (t &lt; tj)
+    <span class="code-keyword">return</span> <span class="code-number">0.5f</span> * s->jerk * t * t;              <span class="code-comment">// 段1: 加加速</span>
+  <span class="code-keyword">else if</span> (t &lt; tj + s->t_accel) {
+    <span class="code-keyword">float</span> v1 = <span class="code-number">0.5f</span> * s->jerk * tj * tj;
+    <span class="code-keyword">return</span> v1 + s->a_max * (t - tj);          <span class="code-comment">// 段2: 匀加速</span>
+  } <span class="code-keyword">else</span> {
+    <span class="code-keyword">float</span> v1 = <span class="code-number">0.5f</span> * s->jerk * tj * tj;
+    <span class="code-keyword">float</span> v2 = v1 + s->a_max * s->t_accel;
+    <span class="code-keyword">float</span> t3 = t - tj - s->t_accel;
+    <span class="code-keyword">return</span> v2 + s->a_max * t3 - <span class="code-number">0.5f</span> * s->jerk * t3 * t3;  <span class="code-comment">// 段3: 减加速</span>
+  }
+}
+<span class="code-comment">// 减速段对称镜像即可。匀速段直接返回v_max。
+// 完整实现参考：GRBL的mc_line()、LinuxCNC的tp.c、AccelStepper的computeNewSpeed() */</span></div>
+
+          <div class="info-box tip mt-3"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>别从零写</strong>：7段S曲线的边界处理（短行程、三角退化、7段切换）非常容易出bug。强烈建议直接用成熟开源库：① <strong>GRBL</strong>（CNC标准，C语言，可直接移植MCU）；② <strong>AccelStepper</strong>（Arduino，支持S曲线）；③ <strong>TrajectoryPlanner</strong>（ROS2/LinuxCNC）。自己实现的核心价值是理解原理，工程上用现成的。</div></div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">动手实验：在线对比梯形vs S曲线</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-3">
+            去轨迹规划章节的速度对比图（<a href="#" onclick="navigateTo('trajectory');return false;" style="color:var(--primary)">轨迹规划与多轴协调</a>），你能看到梯形和S曲线在同一张图上的对比。注意<strong>梯形曲线在拐角处有尖角（加速度突变），S曲线是圆滑过渡</strong>——这就是冲击来源。
+          </p>
+        `,
+      },
+      {
         id: 'mcu-ros',
         title: 'MCU与Linux/ROS桥接',
         desc: '单片机做实时控制，Linux做高层规划——机器人系统的经典分工',
@@ -4212,6 +4385,12 @@ const QuizData = {
     { question: 'Matlab中建立传递函数的核心函数是？', options: ['plot()', 'tf(num, den)', 'matrix()', 'sim()'], answer: 1, explanation: 'tf(num, den) 用分子分母多项式系数建立传递函数。num/den 是降幂排列的系数向量，如 tf([1],[1 2 5]) 表示 G(s)=1/(s²+2s+5)。配合 step(G) 画阶跃响应、feedback(G,1) 求闭环，是控制仿真三板斧。' },
     { question: '仿真调PID时，想同时对比多组Kp的响应，最有效的做法是？', options: ['手动改参数运行多次截图对比', '用for循环画多条step曲线在同一张图上', '每次只改一个参数', '用Excel记录'], answer: 1, explanation: 'for kp=[1 5 10 20] 循环里依次 feedback(C*G,1) + step，hold on 叠加画线。一次运行5条曲线对比，零成本看出哪个Kp响应快/超调大/振荡——这正是工程验证方法论强调的"仿真里零成本试错"。' },
     { question: 'Matlab索引从几开始？', options: ['0', '1', '-1', '任意'], answer: 1, explanation: 'Matlab索引从1开始（与C/Python的从0不同），这是新手最常踩的坑。v(1)是第一个元素。另外注释用%（不是//），语句末分号表示不显示结果。' },
+  ],
+  's-curve': [
+    { question: 'S曲线相比梯形曲线的根本优势是什么？', options: ['运动速度更快', '加速度连续无突变，消除机械冲击', '代码更简单', '不需要编码器'], answer: 1, explanation: '梯形曲线的加速度瞬间从0跳到最大值（jerk=无穷大），对机械产生"咯噔"冲击。S曲线限制jerk，让加速度本身也平滑过渡，运动无冲击。代价是实现更复杂（7段分段）。' },
+    { question: 'S曲线的核心参数jerk（加加速度）设得非常大时会怎样？', options: ['运动更平滑', '退化成梯形曲线（加速度瞬间到位）', '电机会反转', '系统报错'], answer: 1, explanation: 'jerk=无穷大意味着加速度瞬间从0到a_max，这正是梯形曲线的定义。所以调S曲线本质就是调jerk：从大值开始减小，直到加速度波形从方波（突变）变成连续曲线。jerk越小越平滑但加速越慢。' },
+    { question: '验证S曲线是否生效，最可靠的方法是？', options: ['听电机声音', '用手摸振动', '串口输出加速度波形，看是否从方波变成连续曲线', '看电机温度'], answer: 2, explanation: '加速度=速度的微分。梯形曲线的加速度是方波（突变）；S曲线的加速度是连续曲线。用串口输出加速度值到上位机画图，方波→连续曲线的转变一目了然。配合编码器读实际位置验证无丢步，是最科学的验证方法。' },
+    { question: '以下哪个场景最适合用S曲线？', options: ['家用电风扇调速', '机械臂关节运动', 'LED呼吸灯', '电动牙刷'], answer: 1, explanation: '机械臂关节有连杆惯性+减速器，梯形曲线的加速度突变会激发振动、损坏减速器。S曲线让加速度平滑过渡，保护机械。CNC高速加工、SCARA机器人同理。简单场景（风扇/LED）不需要加减速。' },
   ],
 };
 
