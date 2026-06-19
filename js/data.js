@@ -27,6 +27,8 @@ const MotorData = {
         { id: 'servo-control', label: '伺服控制与通信' },
         { id: 'engineering-validation', label: '工程验证方法论' },
         { id: 'current-sense', label: '电流采样硬件' },
+        { id: 'advanced-comm', label: '通讯协议(Modbus/CAN)' },
+        { id: 'advanced-protection', label: '驱动器保护机制' },
       ]
     },
     {
@@ -2083,6 +2085,268 @@ Debug_Sample_t g_dbg_buf[DBG_BUF_SIZE];
   <span class="code-keyword">return</span> (<span class="code-keyword">float</span>)signed_raw * ADC_TO_AMP;     <span class="code-comment">// 转安培</span>
 }</div>
           <div class="info-box warning"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg><div><strong>温度漂移</strong>：offset会随温度变化。精密场合需<strong>周期性重新校准</strong>（如电机静止时），或用温补运放。否则长时间运行后零点漂移会让电流读数带直流分量。</div></div>
+        `,
+      },
+      {
+        id: 'advanced-comm',
+        title: '通讯协议：Modbus RTU 与 CAN',
+        desc: 'RS485物理层、Modbus RTU帧结构、常用功能码03/06/10、CAN帧与CANopen入门',
+        icon: '📡',
+        tags: ['通讯', 'Modbus', 'CAN', 'RS485'],
+        content: `
+          <h3 class="text-lg font-semibold mb-3">为什么电机驱动器离不开通讯协议</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-4">
+            单台电机用 PWM/脉冲就能转。但工业现场一台控制器要管几十台伺服/变频器，MCU 的 GPIO 根本不够用。
+            <strong>通讯总线</strong>用一根双绞线串接所有设备，靠"地址+报文"区分。电机控制领域两大主流：
+            <strong>Modbus RTU</strong>（简单、普及、低速）和 <strong>CAN/CANopen</strong>（可靠、实时、多主）。
+            本节的 CRC 校验可配合 <a href="#" onclick="navigateTo('tools');return false;" style="color:var(--primary)">工具箱→校验工具</a> 实操。
+          </p>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">一、RS485：Modbus 的物理层</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            Modbus RTU 几乎都跑在 <strong>RS485</strong> 串行总线上。理解物理层是排故的关键：
+          </p>
+          <div class="overflow-x-auto"><table class="compare-table">
+            <thead><tr><th>特性</th><th>RS485（差分）</th><th>RS232（单端）</th></tr></thead>
+            <tbody>
+              <tr><td class="font-medium">传输方式</td><td>两线差分（A/B线电压差）</td><td>单线对地电压</td></tr>
+              <tr><td class="font-medium">抗干扰</td><td>强（共模噪声被抵消）</td><td>弱</td></tr>
+              <tr><td class="font-medium">传输距离</td><td>可达1200m</td><td>约15m</td></tr>
+              <tr><td class="font-medium">节点数</td><td>最多32（或128/256个收发器）</td><td>1对1</td></tr>
+              <tr><td class="font-medium">拓扑</td><td>菊花链（手拉手）</td><td>点对点</td></tr>
+            </tbody>
+          </table></div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
+            <div class="p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+              <div class="font-medium mb-1">🔧 终端电阻 120Ω</div>
+              <div class="text-sm text-gray-500">总线<strong>两端</strong>各并一个120Ω电阻，匹配双绞线特性阻抗，防止信号反射。中间节点不接。漏接会导致波形畸变、通信丢帧。</div>
+            </div>
+            <div class="p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+              <div class="font-medium mb-1">🔗 菊花链拓扑</div>
+              <div class="text-sm text-gray-500">设备一个接一个串联，<strong>严禁星形/分支</strong>。分支会产生反射节点。布线时从主站拉到设备1，再到设备2……最后到末端设备。</div>
+            </div>
+          </div>
+          <div class="info-box warning mt-3"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg><div><strong>A/B 接反是最常见故障</strong>：通信完全不通或乱码。怀疑时直接对调 A、B 两线。另外 Modbus RTU 帧间必须留 <strong>3.5 个字符时间</strong>的静默（9600bps 下约 4ms）作为帧边界，无起始/结束标志字节。</div></div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">二、Modbus RTU 帧结构</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            一帧 RTU 报文由 4 部分组成，没有起始结束标志，靠帧间静默分隔：
+          </p>
+          <div class="overflow-x-auto"><table class="compare-table">
+            <thead><tr><th>字节</th><th>字段</th><th>说明</th></tr></thead>
+            <tbody>
+              <tr><td class="font-medium">1</td><td>从站地址</td><td>1~247，0为广播(所有从站响应)</td></tr>
+              <tr><td class="font-medium">1</td><td>功能码</td><td>03读/06写单/10写多/04读输入...</td></tr>
+              <tr><td class="font-medium">N</td><td>数据区</td><td>因功能码而异(寄存器地址+数量/数据)</td></tr>
+              <tr><td class="font-medium">2</td><td>CRC-16</td><td>低字节在前(Modbus字节序)，校验全帧</td></tr>
+            </tbody>
+          </table></div>
+
+          <h4 class="font-medium mt-4 mb-2">常用功能码与报文示例</h4>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            以"主站读从站01的保持寄存器，起始地址0x0000，数量10个"为例（功能码 0x03）：
+          </p>
+          <div class="code-block"><span class="code-comment">/* 请求帧：主站 → 从站01 */</span>
+从站地址 功能码  起始地址  寄存器数   CRC
+  01      03    00 00    00 0A    C5 CD
+
+<span class="code-comment">/* 响应帧：从站01 → 主站（返回20字节=10寄存器×2字节）*/</span>
+  01  03  14  [00 00 00 01 ... 共20字节数据]  XX XX
+  ↑   ↑   ↑   ↑                                ↑
+ 地址 功能 字节数 数据区                         CRC
+
+<span class="code-comment">/* 异常响应：从站无法执行时，功能码最高位置1（0x83）*/</span>
+  01  83  02  C0 F1        <span class="code-comment">// 0x02 = 非法地址</span></div>
+          <div class="overflow-x-auto"><table class="compare-table mt-3">
+            <thead><tr><th>功能码</th><th>操作</th><th>数据区（请求）</th><th>典型用途</th></tr></thead>
+            <tbody>
+              <tr><td class="font-medium">0x03</td><td>读保持寄存器</td><td>起始地址+数量</td><td>读电机转速、电流、位置</td></tr>
+              <tr><td class="font-medium">0x06</td><td>写单个寄存器</td><td>地址+数据(2字节)</td><td>设定目标位置/速度</td></tr>
+              <tr><td class="font-medium">0x10</td><td>写多个寄存器</td><td>地址+数量+字节数+数据</td><td>批量写参数表</td></tr>
+              <tr><td class="font-medium">0x04</td><td>读输入寄存器</td><td>起始地址+数量</td><td>读只读采样值（ADC等）</td></tr>
+            </tbody>
+          </table></div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">三、CRC-16 与帧组装（纯 C 实现）</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            Modbus CRC-16 采用多项式 0x8005（反转 0xA001），输入输出均反转，初值 0xFFFF。CRC 附在帧尾，<strong>低字节在前</strong>：
+          </p>
+          <div class="code-block"><span class="code-comment">/* Modbus CRC-16（查表法，平台无关）*/</span>
+<span class="code-keyword">static const uint16_t</span> crc_table[<span class="code-number">256</span>] = { <span class="code-comment">/* 预计算，省略 */</span> };
+
+<span class="code-keyword">uint16_t</span> <span class="code-func">Modbus_CRC16</span>(<span class="code-keyword">const uint8_t</span> *data, <span class="code-keyword">uint16_t</span> len) {
+  <span class="code-keyword">uint16_t</span> crc = <span class="code-number">0xFFFF</span>;
+  <span class="code-keyword">for</span> (<span class="code-keyword">uint16_t</span> i = <span class="code-number">0</span>; i &lt; len; i++)
+    crc = crc_table[(crc ^ data[i]) & <span class="code-number">0xFF</span>] ^ (crc &gt;&gt; <span class="code-number">8</span>);
+  <span class="code-keyword">return</span> crc;   <span class="code-comment">// 注意：发送时先发低字节(crc & 0xFF)，再发高字节</span>
+}
+
+<span class="code-comment">/* 组装一帧"读保持寄存器"请求：返回帧总长 */</span>
+<span class="code-keyword">uint16_t</span> <span class="code-func">Modbus_BuildRead</span>(<span class="code-keyword">uint8_t</span> *buf, <span class="code-keyword">uint8_t</span> slave,
+                           <span class="code-keyword">uint16_t</span> reg, <span class="code-keyword">uint16_t</span> qty) {
+  buf[<span class="code-number">0</span>] = slave;          <span class="code-comment">// 从站地址</span>
+  buf[<span class="code-number">1</span>] = <span class="code-number">0x03</span>;            <span class="code-comment">// 功能码：读保持寄存器</span>
+  buf[<span class="code-number">2</span>] = reg &gt;&gt; <span class="code-number">8</span>;        <span class="code-comment">// 起始地址高字节</span>
+  buf[<span class="code-number">3</span>] = reg & <span class="code-number">0xFF</span>;       <span class="code-comment">// 起始地址低字节</span>
+  buf[<span class="code-number">4</span>] = qty &gt;&gt; <span class="code-number">8</span>;        <span class="code-comment">// 数量高字节</span>
+  buf[<span class="code-number">5</span>] = qty & <span class="code-number">0xFF</span>;       <span class="code-comment">// 数量低字节</span>
+  <span class="code-keyword">uint16_t</span> crc = <span class="code-func">Modbus_CRC16</span>(buf, <span class="code-number">6</span>);
+  buf[<span class="code-number">6</span>] = crc & <span class="code-number">0xFF</span>;       <span class="code-comment">// CRC低字节在前</span>
+  buf[<span class="code-number">7</span>] = crc &gt;&gt; <span class="code-number">8</span>;        <span class="code-comment">// CRC高字节</span>
+  <span class="code-keyword">return</span> <span class="code-number">8</span>;              <span class="code-comment">// 总长8字节</span>
+}</div>
+          <div class="info-box tip mt-3 mb-4"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>动手验证</strong>：把上面那帧 <code>01 03 00 00 00 0A C5 CD</code> 粘进 <a href="#" onclick="navigateTo('tools');return false;" style="color:var(--primary)">工具箱→校验工具</a> 选 Modbus CRC-16，输入前6字节应算出 <code>C5 CD</code>，与帧尾一致即校验通过。</div></div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">四、CAN 总线与 CANopen</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            CAN（Controller Area Network）是汽车/工业领域的高可靠总线，<strong>多主架构</strong>、带硬件仲裁和非破坏性冲突解决，抗干扰和实时性远超 RS485。高端伺服（如倍福、汇川 EtherCAT 之下层）多用 CANopen。
+          </p>
+          <div class="overflow-x-auto"><table class="compare-table">
+            <thead><tr><th>对比项</th><th>Modbus RTU (RS485)</th><th>CAN / CANopen</th></tr></thead>
+            <tbody>
+              <tr><td class="font-medium">架构</td><td>单主轮询</td><td>多主，带仲裁</td></tr>
+              <tr><td class="font-medium">错误处理</td><td>仅CRC校验，无重传机制</td><td>硬件CRC15+错误帧+自动重传</td></tr>
+              <tr><td class="font-medium">实时性</td><td>从站多时延迟累积</td><td>高优先级ID优先发送，确定性好</td></tr>
+              <tr><td class="font-medium">速率</td><td>≤115200 bps</td><td>1 Mbps（40m内）/ CAN-FD 5Mbps+</td></tr>
+              <tr><td class="font-medium">典型应用</td><td>变频器、简单伺服、仪表</td><td>高端伺服、机器人、汽车</td></tr>
+            </tbody>
+          </table></div>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2 mt-3">
+            CAN 帧分<strong>标准帧（11位ID）</strong>和<strong>扩展帧（29位ID）</strong>，一帧最多 8 字节数据（CAN-FD 64字节）。CANopen 在 CAN 之上定义了<strong>对象字典（OD）</strong>和 DS402 驱动协议：用对象 0x6040（控制字）启动、0x6060（模式选择）设模式、0x607A（目标位置）下指令——详见 <a href="#" onclick="navigateTo('servo-control');return false;" style="color:var(--primary)">伺服控制与通信</a>。
+          </p>
+          <div class="code-block"><span class="code-comment">/* CAN 标准帧结构（MCU CAN控制器通常硬件处理ID/仲裁/CRC）*/</span>
+<span class="code-keyword">typedef struct</span> {
+  <span class="code-keyword">uint32_t</span> id;          <span class="code-comment">// 11位标准ID 或 29位扩展ID</span>
+  <span class="code-keyword">uint8_t</span>  dlc;         <span class="code-comment">// 数据长度 0~8</span>
+  <span class="code-keyword">uint8_t</span>  data[<span class="code-number">8</span>];      <span class="code-comment">// 数据场</span>
+  <span class="code-keyword">uint8_t</span>  ide;         <span class="code-comment">// 0=标准帧 1=扩展帧</span>
+  <span class="code-keyword">uint8_t</span>  rtr;         <span class="code-comment">// 0=数据帧 1=远程帧(请求数据)</span>
+} CanFrame_t;
+
+<span class="code-comment">/* 发送一帧（extern: 硬件相关，由具体CAN驱动实现）*/</span>
+<span class="code-keyword">extern int</span>  <span class="code-func">CAN_Send</span>(CanFrame_t *f);
+<span class="code-keyword">extern int</span>  <span class="code-func">CAN_Recv</span>(CanFrame_t *f, <span class="code-keyword">uint32_t</span> timeout_ms);
+
+<span class="code-comment">/* CANopen 伺服：启动到运转的最小序列（DS402状态机）*/</span>
+<span class="code-comment">// 1. 写 0x6040=0x0006  → Ready to Switch On</span>
+<span class="code-comment">// 2. 写 0x6040=0x0007  → Switched On</span>
+<span class="code-comment">// 3. 写 0x6040=0x000F  → Operation Enabled（电机使能）</span>
+<span class="code-comment">// 4. 写 0x6060=8       → 模式=CSP(周期同步位置)</span>
+<span class="code-comment">// 5. 周期写 0x607A=目标位置 → 电机运转</span></div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">五、调试实战</h3>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div class="p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+              <div class="font-medium mb-1">📋 Modbus 调试</div>
+              <div class="text-sm text-gray-500">PC 端用 <strong>Modbus Poll</strong>（主站模拟）/ <strong>Modbus Slave</strong>（从站模拟）软件，配合 USB转RS485，无需写代码即可读写寄存器验证设备。抓包用串口助手看原始十六进制帧。</div>
+            </div>
+            <div class="p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+              <div class="font-medium mb-1">🚌 CAN 调试</div>
+              <div class="text-sm text-gray-500">用 <strong>PCAN-View</strong> / <strong>CANalsyt</strong> + USB-CAN 适配器。重点看<strong>波特率匹配</strong>（常用 250kbps/500kbps/1Mbps，主从必须一致）和<strong>终端电阻</strong>（CAN-H/CAN-L 间接60Ω=两个120Ω并联）。</div>
+            </div>
+          </div>
+          <div class="info-box tip mt-3"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>排故三步法</strong>：① 物理层（接线/终端电阻/波特率）→ ② 链路层（帧格式/CRC，用本站校验工具）→ ③ 应用层（功能码/寄存器映射）。从下往上逐层排除，90%的通信故障在前两层。</div></div>
+        `,
+      },
+      {
+        id: 'advanced-protection',
+        title: '驱动器保护机制',
+        desc: '过流/过压/欠压/过温/堵转保护，软件阈值与硬件比较器截断，STM32 BRK刹车输入',
+        icon: '🛡️',
+        tags: ['保护', '可靠性', '安全'],
+        content: `
+          <h3 class="text-lg font-semibold mb-3">为什么保护电路比控制算法还重要</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-4">
+            控制算法调不好，电机顶多转得不顺；保护没做好，<strong>一个过流就能烧毁 MOS 管、烧电池、甚至起火</strong>。
+            工业驱动器的可靠性 80% 体现在保护设计上。保护分两层：<strong>软件保护</strong>（ADC 采样→阈值判断→软件停机，响应几十微秒到毫秒）和<strong>硬件保护</strong>（比较器/专用芯片直接关断 PWM，响应纳秒到微秒级）。关键回路必须有硬件保护兜底。
+          </p>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">一、过流保护（最关键）</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            过流来源：负载突变堵转、MOS 短路、换向错误、PWM 死区设置过小导致上下桥直通（shoot-through）。三种方案各有响应速度：
+          </p>
+          <div class="overflow-x-auto"><table class="compare-table">
+            <thead><tr><th>方案</th><th>响应时间</th><th>原理</th><th>适用</th></tr></thead>
+            <tbody>
+              <tr><td class="font-medium">软件 ADC 阈值</td><td>10μs~1ms</td><td>ADC采样电流&gt;阈值→软件清PWM使能</td><td>普通过载、堵转</td></tr>
+              <tr><td class="font-medium">硬件比较器截断</td><td>100ns~1μs</td><td>电流→比较器→直接接PWM EN引脚</td><td>短路、直通（必须）</td></tr>
+              <tr><td class="font-medium">专用驱动器内置</td><td>μs级</td><td>DRV830x/EG2104内置过流比较+SD脚</td><td>省外围、量产首选</td></tr>
+            </tbody>
+          </table></div>
+          <div class="info-box warning mt-3"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg><div><strong>直通(shoot-through)必须在硬件层截断</strong>：上下桥同导通时电源经两个MOS直接短路，电流可在微秒内达到几百安培。软件 ADC 采样根本来不及。STM32 高级定时器的 <strong>BDTR 寄存器</strong>可配 BRK 输入——外部比较器拉低 BRK，硬件立即在下一个时钟周期强制所有 PWM 输出无效，这是硬件兜底的标准做法（参考 <a href="#" onclick="navigateTo('bldc-commutation');return false;" style="color:var(--primary)">BLDC六步换向</a>）。</div></div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">二、过压与欠压保护</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            <strong>过压</strong>：电机减速时变成发电机，反电动势可能超过电源电压（泵升），击穿MOS或让电解电容爆裂。<strong>欠压</strong>：电池电压过低时驱动器工作异常，MOS导通不彻底发热剧增。两者都通过电阻分压采样母线电压：
+          </p>
+          <div class="code-block"><span class="code-comment">/* 母线电压监测（纯算法，ADC读取由硬件完成）*/</span>
+<span class="code-keyword">#define</span> VBUS_MAX_MV   <span class="code-number">26000</span>   <span class="code-comment">// 过压阈值 26V</span>
+<span class="code-keyword">#define</span> VBUS_MIN_MV   <span class="code-number">10000</span>   <span class="code-comment">// 欠压阈值 10V</span>
+<span class="code-keyword">#define</span> REGEN_BRAKE_MV <span class="code-number">24500</span>  <span class="code-comment">// 泵升保护：超此启动制动电阻泄放</span>
+
+<span class="code-comment">/* 分压电阻将母线电压缩放到ADC量程，系数由硬件分压比决定 */</span>
+<span class="code-keyword">extern uint32_t</span> <span class="code-func">ADC_ReadBus</span>(<span class="code-keyword">void</span>);   <span class="code-comment">// 返回毫伏</span>
+
+<span class="code-keyword">typedef enum</span> { BUS_OK, BUS_OVER, BUS_UNDER } BusState_t;
+
+BusState_t <span class="code-func">Bus_Check</span>(<span class="code-keyword">void</span>) {
+  <span class="code-keyword">uint32_t</span> v = <span class="code-func">ADC_ReadBus</span>();
+  <span class="code-keyword">if</span> (v &gt; VBUS_MAX_MV)  <span class="code-keyword">return</span> BUS_OVER;     <span class="code-comment">// 立即停机</span>
+  <span class="code-keyword">if</span> (v &lt; VBUS_MIN_MV)  <span class="code-keyword">return</span> BUS_UNDER;   <span class="code-comment">// 报警停机</span>
+  <span class="code-keyword">if</span> (v &gt; REGEN_BRAKE_MV) <span class="code-func">Regen_DumpEnable</span>(<span class="code-number">1</span>); <span class="code-comment">// 开制动电阻</span>
+  <span class="code-keyword">return</span> BUS_OK;
+}</div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">三、过温保护</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            MOS 管和电机绕组的温度需监测。<strong>NTC 热敏电阻</strong>阻值随温度上升而下降，分压后 ADC 采样，查表换算成温度。MOS 通常 85°C 报警降额、105°C 停机；电机绕组 F 级绝缘上限 155°C。
+          </p>
+          <div class="code-block"><span class="code-comment">/* NTC 查表法：ADC原始值→温度(0.1℃)。表由标定生成，省略B值计算 */</span>
+<span class="code-keyword">static const int16_t</span> ntc_table[<span class="code-number">1024</span>] = { <span class="code-comment">/* ADC值 0~1023 → 温度×10 */</span> };
+
+<span class="code-keyword">int16_t</span> <span class="code-func">Temp_Read</span>(<span class="code-keyword">void</span>) {
+  <span class="code-keyword">uint16_t</span> adc = <span class="code-func">ADC_ReadTemp</span>();
+  <span class="code-keyword">return</span> ntc_table[adc & <span class="code-number">0x3FF</span>];   <span class="code-comment">// 单位 0.1℃</span>
+}
+
+<span class="code-comment">/* 温度保护策略：分级降额而非直接停机，避免突然断电造成危险 */</span>
+<span class="code-keyword">void</span> <span class="code-func">Temp_Protect</span>(<span class="code-keyword">int16_t</span> t_x10) {
+  <span class="code-keyword">if</span> (t_x10 &gt; <span class="code-number">1050</span>)      <span class="code-func">Motor_Disable</span>();      <span class="code-comment">// 105℃停机</span>
+  <span class="code-keyword">else if</span> (t_x10 &gt; <span class="code-number">850</span>) <span class="code-func">Current_Limit</span>(<span class="code-number">50</span>);  <span class="code-comment">// 85℃限流50%</span>
+}</div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">四、堵转保护</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            电机被机械卡死但持续通电，电流剧增、温度飙升，是烧电机的常见原因。检测逻辑：<strong>有电流指令但转速≈0持续超过阈值时间</strong>即判定堵转。
+          </p>
+          <div class="code-block"><span class="code-comment">/* 堵转检测（周期调用，如1ms）*/</span>
+<span class="code-keyword">#define</span> STALL_I_THRESH   <span class="code-number">2.0f</span>   <span class="code-comment">// 电流&gt;2A</span>
+<span class="code-keyword">#define</span> STALL_W_THRESH   <span class="code-number">5.0f</span>   <span class="code-comment">// 转速&lt;5RPM视为停转</span>
+<span class="code-keyword">#define</span> STALL_TICKS      <span class="code-number">500</span>   <span class="code-comment">// 持续500ms</span>
+
+<span class="code-keyword">uint32_t</span> stall_cnt = <span class="code-number">0</span>;
+<span class="code-keyword">bool</span> <span class="code-func">Stall_Detect</span>(<span class="code-keyword">float</span> i_q, <span class="code-keyword">float</span> w_rpm) {
+  <span class="code-keyword">if</span> (i_q &gt; STALL_I_THRESH && <span class="code-func">fabsf</span>(w_rpm) &lt; STALL_W_THRESH) {
+    <span class="code-keyword">if</span> (++stall_cnt &gt; STALL_TICKS) <span class="code-keyword">return true</span>;   <span class="code-comment">// 堵转确认</span>
+  } <span class="code-keyword">else</span> {
+    stall_cnt = <span class="code-number">0</span>;   <span class="code-comment">// 恢复则清零</span>
+  }
+  <span class="code-keyword">return false</span>;
+}</div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">五、保护优先级与综合状态机</h3>
+          <div class="overflow-x-auto"><table class="compare-table">
+            <thead><tr><th>保护项</th><th>响应方式</th><th>优先级</th><th>失效后果</th></tr></thead>
+            <tbody>
+              <tr><td class="font-medium">硬件过流(BRK)</td><td>纳秒级硬件截断</td><td>最高</td><td>无→MOS炸裂</td></tr>
+              <tr><td class="font-medium">过压/泵升</td><td>停机+制动电阻</td><td>高</td><td>无→电容爆/管击穿</td></tr>
+              <tr><td class="font-medium">软件过流</td><td>软件停PWM</td><td>高</td><td>无→过热烧管</td></tr>
+              <tr><td class="font-medium">过温</td><td>分级降额→停机</td><td>中</td><td>无→绝缘老化</td></tr>
+              <tr><td class="font-medium">堵转</td><td>延时后停机</td><td>中</td><td>无→烧绕组</td></tr>
+              <tr><td class="font-medium">欠压</td><td>报警停机</td><td>低</td><td>无→工作异常发热</td></tr>
+            </tbody>
+          </table></div>
+          <div class="info-box tip mt-3"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>设计原则</strong>：① 致命故障（过流/过压）必须有<strong>独立硬件通路</strong>兜底，不能只靠软件；② 保护动作要有<strong>锁定+手动复位</strong>，避免反复触发；③ 记录故障码便于排查（哪个保护触发的、触发时的电流/电压/温度值）。这套思路同样适用于 <a href="#" onclick="navigateTo('engineering-validation');return false;" style="color:var(--primary)">工程验证</a> 的可靠性测试。</div></div>
         `,
       },
     ],
@@ -4380,6 +4644,18 @@ const QuizData = {
     { question: 'FOC三相电流采样最常用的方案是？', options: ['霍尔电流传感器ACS712', '下桥臂shunt电阻+专用电流检测运放(如INA240)', '测电源电压反推', '测电机温度反推'], answer: 1, explanation: '下桥臂采样：每个下桥MOS源极串一个mΩ级精密电阻，电流流过产生压降，经INA240放大送ADC。运放共地接法简单、成本低、带宽够，是FOC的主流方案。ACS712适合过流保护不适合精密FOC。' },
     { question: '下桥臂采样时，为什么必须在PWM周期中点采样？', options: ['中点电压最稳定', '此时下桥MOS导通电流稳定，避开开关瞬间的噪声尖峰', '中点ADC精度高', '减少CPU占用'], answer: 1, explanation: '下桥MOS导通期间电流才流过shunt，PWM开关瞬间会产生巨大共模跳变和毛刺。在周期中点采样既保证MOS导通(有电流)，又避开开关边沿(无噪声)。STM32用TIM TRGO触发ADC实现自动同步。' },
     { question: '电流采样系统上电后必须做的第一步是？', options: ['直接启动电机', '零电流校准——电机断电采多次取平均作为ADC偏置', '调PID参数', '测PWM频率'], answer: 1, explanation: '运放和ADC有零点偏移(offset)，零电流时读数不是理想VCC/2。这个偏移若不去除，会被当成直流电流污染整个FOC。校准：电机断电→采1024次取平均→存为offset→正式采样时减去。温度漂移大时需周期重校。' },
+  ],
+  'advanced-comm': [
+    { question: 'Modbus RTU帧是如何界定起止的（它没有起始/结束标志字节）？', options: ['靠固定长度', '靠帧间3.5个字符时间的静默', '靠特殊的0xAA标志', '靠CRC结尾自动识别'], answer: 1, explanation: 'RTU模式无起始/结束字节，靠帧间至少3.5个字符的静默时间分隔（9600bps下约4ms）。这也是为什么波特率越高帧间隔要求越短。如果主站发帧后没有足够间隔，从站会把两帧误判成一帧导致CRC错误。' },
+    { question: 'RS485总线两端的120Ω终端电阻作用是？', options: ['限流保护芯片', '匹配双绞线特性阻抗，防止信号反射', '提高传输电压', '减少功耗'], answer: 1, explanation: '长线传输时，信号到达线末端若阻抗不匹配会反射，叠加原信号造成畸变。120Ω终端电阻与双绞线特性阻抗匹配，吸收信号消除反射。只在总线物理两端各接一个，中间节点不接，多接反而劣化。' },
+    { question: 'Modbus功能码0x83表示什么？', options: ['读保持寄存器的响应', '读保持寄存器的异常响应（0x03的最高位置1）', '写多个寄存器', '广播命令'], answer: 1, explanation: 'Modbus异常响应的规则：把原功能码最高位置1。0x03→0x83表示"读保持寄存器出错"，后跟一个异常码（如0x02非法地址、0x03非法数据值）。主站收到异常响应就知道从站执行失败及原因。' },
+    { question: '相比Modbus RTU，CAN总线的核心优势是？', options: ['接线更简单', '多主架构+硬件仲裁+自动重传，实时性和可靠性更高', '速率更低更稳定', '成本更低'], answer: 1, explanation: 'CAN是多主总线，靠ID优先级仲裁（非破坏性），高优先级报文优先发送且延迟确定；硬件CRC15+错误帧+自动重传保证可靠性。RS485是单主轮询，从站多时延迟累积。CAN更适合高实时多节点场景（汽车、机器人）。' },
+  ],
+  'advanced-protection': [
+    { question: '为什么上下桥直通(shoot-through)保护必须用硬件比较器而不是软件ADC？', options: ['软件更复杂', '直通电流微秒级达数百安培，软件采样响应来不及', 'ADC精度不够', '软件不能关PWM'], answer: 1, explanation: '直通时电源经两个MOS直接短路，电流上升极快（di/dt），几微秒内可达数百安培。软件ADC采样+判断+关断最快也要十几微秒，MOS早炸了。硬件比较器直接接PWM使能脚或STM32的BRK输入，纳秒到微秒级截断，是唯一来得及的方案。' },
+    { question: '电机减速时母线电压升高（泵升）的危害和保护措施是？', options: ['无危害，正常现象', '可能击穿MOS/爆电容，用制动电阻泄能或过压停机', '提高效率，应鼓励', '加更大电机'], answer: 1, explanation: '减速时电机变发电机，反电动势给母线电容充电导致电压升高（泵升）。超压会击穿MOS、让电解电容爆裂。保护：①制动电阻(mos+功率电阻)消耗回馈能量；②过压阈值硬件比较器立即停机。变频器/伺服都有泵升保护电路。' },
+    { question: 'STM32高级定时器的BRK输入在保护中起什么作用？', options: ['产生PWM', '外部信号触发时硬件立即强制所有PWM输出无效', '测量电流', '配置波特率'], answer: 1, explanation: 'BRK(Break)是硬件刹车输入。当外部比较器检测到过流拉低BRK引脚时，STM32硬件在下一个时钟周期立即把所有PWM通道强制为安全电平（无效），无需软件介入。这是实现纳秒级硬件过流保护的标配机制，配合BDTR寄存器配置。' },
+    { question: '堵转保护的核心判据是？', options: ['电流为零', '电流大于阈值且转速接近零持续一定时间', '温度低', '电压高'], answer: 1, explanation: '堵转=电机被卡但持续通电。特征：电流指令大（有电流流过）但转速≈0（没转）。为避免启动瞬间误判，需持续超过阈值时间（如500ms）才确认。堵转不保护会因持续大电流迅速过热烧毁绕组。' },
   ],
   'matlab-sim': [
     { question: 'Matlab中建立传递函数的核心函数是？', options: ['plot()', 'tf(num, den)', 'matrix()', 'sim()'], answer: 1, explanation: 'tf(num, den) 用分子分母多项式系数建立传递函数。num/den 是降幂排列的系数向量，如 tf([1],[1 2 5]) 表示 G(s)=1/(s²+2s+5)。配合 step(G) 画阶跃响应、feedback(G,1) 求闭环，是控制仿真三板斧。' },
