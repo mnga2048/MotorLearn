@@ -8,7 +8,14 @@ const Calculator = {
         <h3>${calc.title}</h3>
         <div class="formula-block text-sm my-3">${calc.formula}</div>
         <div class="calc-group">
-          ${calc.fields.map(f => `
+          ${calc.fields.map(f => f.options ? `
+            <div class="calc-field">
+              <label>${f.label}</label>
+              <select id="calc-${calc.id}-${f.id}" onchange="Calculator.compute('${calc.id}')">
+                ${f.options.map(o => `<option value="${o}">${o}</option>`).join('')}
+              </select>
+            </div>
+          ` : `
             <div class="calc-field">
               <label>${f.label}</label>
               <input type="number" id="calc-${calc.id}-${f.id}" value="${f.default}" step="any" oninput="Calculator.compute('${calc.id}')">
@@ -32,7 +39,7 @@ const Calculator = {
     const values = {};
     calc.fields.forEach(f => {
       const el = document.getElementById(`calc-${calcId}-${f.id}`);
-      values[f.id] = parseFloat(el?.value) || 0;
+      values[f.id] = f.options ? (el?.value || f.options[0]) : (parseFloat(el?.value) || 0);
     });
     const result = calc.calc(values);
     const el = document.getElementById(`calc-${calcId}-value`);

@@ -4448,6 +4448,10 @@ Servo_t joint_base, joint_arm, joint_hand;
       ['寿命', '短(电刷磨损)', '长', '长', '长', '中(电位器磨损)'],
       ['控制复杂度', '简单', '复杂', '简单', '复杂', '极简'],
       ['典型应用', '玩具、家电', '无人机、电动工具', '3D打印、CNC', '工业机器人', 'RC模型、机器人关节'],
+      ['最大转速(RPM)', '3000-8000', '1000-20000+', '500-1000', '3000-6000', 'N/A(60-300°/s)'],
+      ['扭矩范围(N·m)', '0.01-5', '0.05-50', '0.1-10(低速)', '0.5-200', '0.005-0.5'],
+      ['典型工作电压(V)', '3-24', '6-48', '5-48', '24-220', '4.8-7.4'],
+      ['响应时间(阶跃)', '10-50ms', '1-10ms', '5-20ms', '0.5-5ms', '50-200ms'],
     ],
   },
 
@@ -4627,6 +4631,108 @@ Servo_t joint_base, joint_arm, joint_hand;
       formula: 'CCR = (min + (max-min) × angle/180) / 20000 × ARR',
       calc: (v) => ((v.min_us + (v.max_us - v.min_us) * v.angle / 180) / 20000 * v.arr).toFixed(0),
       unit: 'CCR值',
+    },
+    {
+      id: 'stepper-accel',
+      title: '步进电机加减速时间',
+      fields: [
+        { id: 'steps', label: '总脉冲数', default: '4000' },
+        { id: 'start_hz', label: '起步频率 (Hz)', default: '200' },
+        { id: 'target_hz', label: '目标频率 (Hz)', default: '2000' },
+        { id: 'accel', label: '加速度 (步/s²)', default: '4000' },
+      ],
+      formula: 't_acc = (f_target - f_start)/a ;  s_acc = f_start·t + ½a·t²',
+      calc: (v) => {
+        const tAcc = (v.target_hz - v.start_hz) / v.accel;
+        const tCruise = v.steps >= v.target_hz * tAcc ? (v.steps - v.target_hz * tAcc) / v.target_hz : 0;
+        const tTotal = tAcc + tCruise;
+        return '加速 ' + tAcc.toFixed(3) + 's | 总 ' + tTotal.toFixed(3) + 's';
+      },
+      unit: '时间',
+    },
+    {
+      id: 'scurve-jerk',
+      title: 'S曲线 jerk 参数计算',
+      fields: [
+        { id: 'jerk', label: '加加速度 j (单位/s³)', default: '1000' },
+        { id: 'a_max', label: '最大加速度 a_max (单位/s²)', default: '50' },
+        { id: 'v_max', label: '最大速度 v_max (单位/s)', default: '100' },
+      ],
+      formula: 't_j = a_max/j ; t_a = v_max/a_max + t_j',
+      calc: (v) => {
+        const tj = v.a_max / v.jerk;
+        const ta = v.v_max / v.a_max + tj;
+        return 'jerk段 ' + tj.toFixed(3) + 's | 加速段 ' + ta.toFixed(3) + 's';
+      },
+      unit: '时间',
+    },
+    {
+      id: 'pid-output',
+      title: 'PID输出 + 限幅',
+      fields: [
+        { id: 'kp', label: 'Kp', default: '0.5' },
+        { id: 'ki', label: 'Ki', default: '0.1' },
+        { id: 'kd', label: 'Kd', default: '0.05' },
+        { id: 'err', label: '当前误差 e', default: '10' },
+        { id: 'derr', label: '误差变化率 (e-上次e)', default: '2' },
+        { id: 'intg', label: '已累积积分项', default: '0' },
+        { id: 'limit', label: '输出限幅 (±)', default: '100' },
+      ],
+      formula: 'u = Kp·e + Ki·Σe + Kd·Δe（再限幅）',
+      calc: (v) => {
+        const newIntg = v.intg + v.err;
+        let u = v.kp * v.err + v.ki * newIntg + v.kd * v.derr;
+        let clamped = Math.abs(u) > v.limit;
+        if (clamped) u = u > 0 ? v.limit : -v.limit;
+        return '输出 ' + u.toFixed(2) + (clamped ? ' (已限幅)' : '');
+      },
+      unit: 'PID输出',
+    },
+    {
+      id: 'pole-freq',
+      title: '极对数 ↔ 电频率/转速',
+      fields: [
+        { id: 'poles', label: '极对数 p', default: '7' },
+        { id: 'rpm', label: '机械转速 (RPM)', default: '3000' },
+      ],
+      formula: '电频率 f_e = p × n / 60  ；每个电周期需换向 6 次(六步)',
+      calc: (v) => {
+        const fe = v.poles * v.rpm / 60;
+        return '电频率 ' + fe.toFixed(1) + ' Hz (电角速度 ' + (2 * Math.PI * fe).toFixed(1) + ' rad/s)';
+      },
+      unit: '电频率',
+    },
+    {
+      id: 'kt-ke-bidir',
+      title: 'Kt ↔ Ke 双向换算',
+      fields: [
+        { id: 'val', label: '已知常数数值', default: '0.05' },
+        { id: 'type', label: '已知是 Kt 还是 Ke', default: 'Kt', options: ['Kt', 'Ke'] },
+      ],
+      formula: 'SI单位下 Kt(N·m/A) = Ke(V·s/rad)；换算KV时 Ke = 60/(2π·KV)',
+      calc: (v) => {
+        if (v.type === 'Kt') {
+          return 'Ke = ' + (v.val / 1).toFixed(4) + ' V·s/rad | KV ≈ ' + (60 / (2 * Math.PI * v.val)).toFixed(0) + ' RPM/V';
+        } else {
+          return 'Kt = ' + v.val.toFixed(4) + ' N·m/A | KV ≈ ' + (60 / (2 * Math.PI * v.val)).toFixed(0) + ' RPM/V';
+        }
+      },
+      unit: '换算结果',
+    },
+    {
+      id: 'battery-runtime',
+      title: '电池续航估算',
+      fields: [
+        { id: 'cap', label: '电池容量 (mAh)', default: '2200' },
+        { id: 'current', label: '平均工作电流 (mA)', default: '800' },
+        { id: 'eff', label: '可用比例 (%)', default: '80' },
+      ],
+      formula: '续航 = 容量 × 可用比例 / 平均电流',
+      calc: (v) => {
+        const hours = v.cap * v.eff / 100 / v.current;
+        return '续航 ' + hours.toFixed(2) + ' h (' + (hours * 60).toFixed(0) + ' 分钟)';
+      },
+      unit: '续航时间',
     },
   ],
 };
