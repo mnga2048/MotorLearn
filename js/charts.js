@@ -396,6 +396,169 @@ const Charts = {
       apply('fwd');
     },
 
+    // FOC 坐标变换交互图：拖动θ角，观察 abc→αβ→dq 的变换过程
+    foc(el) {
+      // 电流幅值假设为1（归一化），便于观察几何关系
+      // Ia = cos(θ), Ib = cos(θ-120°), Ic = cos(θ+120°)
+      el.innerHTML = `
+        <div style="display:flex;gap:10px;align-items:center;justify-content:center;margin-bottom:10px;flex-wrap:wrap">
+          <label style="font-size:13px;color:var(--text-secondary)">电角度 θ = <b id="foc-th" style="color:#d4940a;font-family:Consolas">0°</b></label>
+          <input type="range" id="foc-slider" min="0" max="360" value="0" step="1" style="width:220px;accent-color:var(--primary)">
+          <button id="foc-auto" style="padding:5px 14px;border:1px solid var(--border);border-radius:6px;background:var(--bg-card);color:var(--text-secondary);font-size:13px;cursor:pointer">▶ 自动旋转</button>
+        </div>
+        <svg id="foc-svg" viewBox="0 0 820 300" style="width:100%;max-width:760px;margin:0 auto;display:block;touch-action:none">
+          <defs>
+            <marker id="foc-arr" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="currentColor"/></marker>
+            <style>.foc-lbl{paint-order:stroke;stroke:var(--bg-card);stroke-width:3px;stroke-linejoin:round;font-family:Consolas,monospace}</style>
+          </defs>
+          <!-- 三个坐标系标题 -->
+          <text x="140" y="24" text-anchor="middle" class="foc-lbl" fill="#c0392b" font-weight="bold" font-size="14">abc 三相 (旋转)</text>
+          <text x="410" y="24" text-anchor="middle" class="foc-lbl" fill="#2e7d32" font-weight="bold" font-size="14">αβ 两相 (静止)</text>
+          <text x="680" y="24" text-anchor="middle" class="foc-lbl" fill="#1565c0" font-weight="bold" font-size="14">dq 旋转 (直流!)</text>
+          <!-- 左：abc 三相坐标系（中心140,160，R=70）-->
+          <g id="foc-abc">
+            <circle cx="140" cy="160" r="70" fill="none" stroke="var(--border)" stroke-width="1" stroke-dasharray="3,3"/>
+            <line x1="140" y1="160" x2="140" y2="80" stroke="var(--text-secondary)" stroke-width="1.2" marker-end="url(#foc-arr)" style="color:var(--text-secondary)"/>
+            <line id="foc-va" x1="140" y1="160" stroke="#c0392b" stroke-width="3" marker-end="url(#foc-arr)" style="color:#c0392b"/>
+            <line id="foc-vb" x1="140" y1="160" stroke="#2e7d32" stroke-width="2.5" marker-end="url(#foc-arr)" style="color:#2e7d32" opacity="0.8"/>
+            <line id="foc-vc" x1="140" y1="160" stroke="#8e44ad" stroke-width="2.5" marker-end="url(#foc-arr)" style="color:#8e44ad" opacity="0.8"/>
+            <text id="foc-va-lbl" class="foc-lbl" fill="#c0392b" font-weight="bold" font-size="12">a</text>
+            <text id="foc-vb-lbl" class="foc-lbl" fill="#2e7d32" font-weight="bold" font-size="12">b</text>
+            <text id="foc-vc-lbl" class="foc-lbl" fill="#8e44ad" font-weight="bold" font-size="12">c</text>
+          </g>
+          <!-- 中：αβ 静止坐标系（中心410,160）-->
+          <g id="foc-ab">
+            <line x1="410" y1="160" x2="490" y2="160" stroke="var(--text-secondary)" stroke-width="1.2" marker-end="url(#foc-arr)" style="color:var(--text-secondary)"/>
+            <line x1="410" y1="160" x2="410" y2="80" stroke="var(--text-secondary)" stroke-width="1.2" marker-end="url(#foc-arr)" style="color:var(--text-secondary)"/>
+            <text x="496" y="164" class="foc-lbl" fill="var(--text-secondary)" font-size="11">α</text>
+            <text x="416" y="78" class="foc-lbl" fill="var(--text-secondary)" font-size="11">β</text>
+            <line id="foc-valpha" x1="410" y1="160" stroke="#2e7d32" stroke-width="3" marker-end="url(#foc-arr)" style="color:#2e7d32"/>
+            <text id="foc-valpha-lbl" class="foc-lbl" fill="#2e7d32" font-weight="bold" font-size="12">Iα</text>
+          </g>
+          <!-- 右：dq 旋转坐标系（中心680,160）—— dq轴跟随θ转，但合成向量不动(直流) -->
+          <g id="foc-dq">
+            <circle cx="680" cy="160" r="70" fill="none" stroke="var(--border)" stroke-width="1" stroke-dasharray="3,3"/>
+            <!-- dq 坐标轴：d轴方向固定(水平右)，q轴固定(垂直上)，因为合成向量在dq里是常量 -->
+            <line id="foc-daxis" x1="680" y1="160" stroke="#1565c0" stroke-width="1.5" stroke-dasharray="4,3" style="color:#1565c0" opacity="0.5"/>
+            <line id="foc-qaxis" x1="680" y1="160" stroke="#1565c0" stroke-width="1.5" stroke-dasharray="4,3" style="color:#1565c0" opacity="0.5"/>
+            <text id="foc-d-lbl" class="foc-lbl" fill="#1565c0" font-size="11" opacity="0.7">d</text>
+            <text id="foc-q-lbl" class="foc-lbl" fill="#1565c0" font-size="11" opacity="0.7">q</text>
+            <!-- 合成向量：在dq里是常量(这里Id=0,Iq=1.5归一化)，画在q轴方向 -->
+            <line id="foc-idq" x1="680" y1="160" stroke="#d4940a" stroke-width="3.5" marker-end="url(#foc-arr)" style="color:#d4940a"/>
+            <text id="foc-idq-lbl" class="foc-lbl" fill="#d4940a" font-weight="bold" font-size="12">Iq</text>
+          </g>
+          <!-- 箭头连接：abc→αβ→dq -->
+          <text x="275" y="165" text-anchor="middle" class="foc-lbl" fill="var(--text-secondary)" font-size="11">Clarke</text>
+          <text x="275" y="180" text-anchor="middle" fill="var(--text-secondary)" font-size="16">→</text>
+          <text x="545" y="165" text-anchor="middle" class="foc-lbl" fill="var(--text-secondary)" font-size="11">Park</text>
+          <text x="545" y="180" text-anchor="middle" fill="var(--text-secondary)" font-size="16">→</text>
+        </svg>
+        <div style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap;font-family:Consolas,monospace;font-size:13px;margin-top:6px">
+          <span style="color:#c0392b">Ia=<b id="foc-ia">1.00</b></span>
+          <span style="color:#2e7d32">Ib=<b id="foc-ib">-0.50</b></span>
+          <span style="color:#8e44ad">Ic=<b id="foc-ic">-0.50</b></span>
+          <span style="color:#2e7d32">Iα=<b id="foc-ialpha">1.00</b></span>
+          <span style="color:#1565c0">Id=<b id="foc-id">0.00</b></span>
+          <span style="color:#d4940a">Iq=<b id="foc-iq">1.00</b></span>
+        </div>
+        <div style="text-align:center;color:var(--text-secondary);font-size:12px;margin-top:6px">拖动滑块改变θ，观察：左图三相向量随θ旋转(交流)；右图 Iq 始终是常量(直流)——这就是 FOC 能用 PI 控制的原因</div>`;
+      const svg = el.querySelector('#foc-svg');
+      const slider = el.querySelector('#foc-slider');
+      const thLbl = el.querySelector('#foc-th');
+      const autoBtn = el.querySelector('#foc-auto');
+      // 坐标系中心与半径
+      const ABC_CX = 140, ABC_CY = 160, ABC_R = 65;
+      const AB_CX = 410, AB_CY = 160, AB_R = 65;
+      const DQ_CX = 680, DQ_CY = 160, DQ_R = 60;
+      let autoRAF = null;
+
+      function setVec(id, x1, y1, x2, y2) {
+        const ln = svg.querySelector('#' + id);
+        ln.setAttribute('x1', x1); ln.setAttribute('y1', y1);
+        ln.setAttribute('x2', x2); ln.setAttribute('y2', y2);
+      }
+      function setLbl(id, x, y) {
+        const t = svg.querySelector('#' + id);
+        t.setAttribute('x', x); t.setAttribute('y', y);
+      }
+
+      function render(deg) {
+        const th = deg * Math.PI / 180;
+        // 三相电流（幅值1）：Ia=cos(θ), Ib=cos(θ-120°), Ic=cos(θ+120°)
+        const ia = Math.cos(th);
+        const ib = Math.cos(th - 2 * Math.PI / 3);
+        const ic = Math.cos(th + 2 * Math.PI / 3);
+        // Clarke (幅值不变版 2/3)：Iα = Ia，Iβ = (Ia + 2Ib)/√3
+        const ialpha = ia;
+        const ibeta = (ia + 2 * ib) / Math.sqrt(3);
+        // Park：Id = Iα·cosθ + Iβ·sinθ，Iq = -Iα·sinθ + Iβ·cosθ
+        // 对于纯q轴电流设定，结果应为 Id≈0, Iq≈1.5
+        const id = ialpha * Math.cos(th) + ibeta * Math.sin(th);
+        const iq = -ialpha * Math.sin(th) + ibeta * Math.cos(th);
+
+        // === 左：abc 三相向量（从中心指向 Ia/Ib/Ic 方向，长度按幅值缩放）===
+        // a相方向：θ-90°(向上为正θ方向，因SVG y向下)，长度=|Ia|*R
+        // 用径向表示：向量角度=相轴角度，长度=瞬时电流值(可正可负，负则反向)
+        const aAng = -Math.PI / 2;       // a相轴指向正上(屏幕)
+        const bAng = aAng + 2 * Math.PI / 3;  // b相轴顺时针120°
+        const cAng = aAng - 2 * Math.PI / 3;  // c相轴
+        setVec('foc-va', ABC_CX, ABC_CY, ABC_CX + Math.cos(aAng) * ia * ABC_R, ABC_CY + Math.sin(aAng) * ia * ABC_R);
+        setVec('foc-vb', ABC_CX, ABC_CY, ABC_CX + Math.cos(bAng) * ib * ABC_R, ABC_CY + Math.sin(bAng) * ib * ABC_R);
+        setVec('foc-vc', ABC_CX, ABC_CY, ABC_CX + Math.cos(cAng) * ic * ABC_R, ABC_CY + Math.sin(cAng) * ic * ABC_R);
+        setLbl('foc-va-lbl', ABC_CX + Math.cos(aAng) * ia * ABC_R + 8, ABC_CY + Math.sin(aAng) * ia * ABC_R);
+        setLbl('foc-vb-lbl', ABC_CX + Math.cos(bAng) * ib * ABC_R + 8, ABC_CY + Math.sin(bAng) * ib * ABC_R);
+        setLbl('foc-vc-lbl', ABC_CX + Math.cos(cAng) * ic * ABC_R + 8, ABC_CY + Math.sin(cAng) * ic * ABC_R);
+
+        // === 中：αβ 静止坐标合成向量 ===
+        setVec('foc-valpha', AB_CX, AB_CY, AB_CX + ialpha * AB_R, AB_CY - ibeta * AB_R);
+        setLbl('foc-valpha-lbl', AB_CX + ialpha * AB_R + 6, AB_CY - ibeta * AB_R);
+
+        // === 右：dq 旋转坐标 ===
+        // dq轴在屏幕上"看起来不动"(因为Iq恒定向上)，但物理上随θ转
+        // 这里画 dq 轴指示方向(d水平右、q垂直上)，合成向量(Iq)画在q轴(上)
+        setVec('foc-daxis', DQ_CX, DQ_CY, DQ_CX + DQ_R * 0.8, DQ_CY);
+        setVec('foc-qaxis', DQ_CX, DQ_CY, DQ_CX, DQ_CY - DQ_R * 0.8);
+        setLbl('foc-d-lbl', DQ_CX + DQ_R * 0.8 + 4, DQ_CY + 4);
+        setLbl('foc-q-lbl', DQ_CX + 4, DQ_CY - DQ_R * 0.8);
+        // 合成向量：Id沿d轴(水平)，Iq沿q轴(垂直)。画 (Id, Iq) 的合成
+        setVec('foc-idq', DQ_CX, DQ_CY, DQ_CX + id * DQ_R, DQ_CY - iq * DQ_R);
+        setLbl('foc-idq-lbl', DQ_CX + id * DQ_R + 8, DQ_CY - iq * DQ_R);
+
+        // === 数值显示 ===
+        thLbl.textContent = deg.toFixed(0) + '°';
+        el.querySelector('#foc-ia').textContent = ia.toFixed(2);
+        el.querySelector('#foc-ib').textContent = ib.toFixed(2);
+        el.querySelector('#foc-ic').textContent = ic.toFixed(2);
+        el.querySelector('#foc-ialpha').textContent = ialpha.toFixed(2);
+        el.querySelector('#foc-id').textContent = id.toFixed(2);
+        el.querySelector('#foc-iq').textContent = iq.toFixed(2);
+      }
+
+      slider.addEventListener('input', () => render(parseInt(slider.value)));
+      // 自动旋转
+      let autoDeg = 0;
+      autoBtn.addEventListener('click', () => {
+        if (autoRAF) {
+          cancelAnimationFrame(autoRAF); autoRAF = null;
+          autoBtn.textContent = '▶ 自动旋转';
+          autoBtn.style.color = 'var(--text-secondary)';
+          slider.disabled = false;
+        } else {
+          autoBtn.textContent = '⏸ 暂停';
+          autoBtn.style.color = 'var(--primary)';
+          slider.disabled = true;
+          const tick = () => {
+            autoDeg = (autoDeg + 1.5) % 360;
+            slider.value = autoDeg;
+            render(autoDeg);
+            autoRAF = requestAnimationFrame(tick);
+          };
+          autoRAF = requestAnimationFrame(tick);
+        }
+      });
+      render(0);
+    },
+
     // 机械臂交互图：拖拽末端，实时显示θ1/θ2/x/y，标注角度位置
     arm(el) {
       const L1 = 130, L2 = 100;

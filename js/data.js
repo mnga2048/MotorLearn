@@ -1360,6 +1360,44 @@ TIM_HandleTypeDef htim1;
             <div>完整 SVPWM 要算 6 个扇区、相邻矢量作用时间 T1/T2、零矢量分配。简化版用"反Clarke + 中点注入"达到 ~87% 的电压利用率（接近完整 SVPWM 的 90.6%），代码量少一半，DIY FOC 首选。</div>
           </div>
 
+          <h4 class="font-medium mt-5 mb-2">进阶：标准七段式 SVPWM（完整推导）</h4>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            上面简化版够用，但要榨干母线电压（达 90.6%）或满足严格波形对称性，需用<strong>标准七段式 SVPWM</strong>。核心思路：逆变器 8 个基本电压矢量（6 个非零 + 2 个零矢量），把任意目标电压矢量分解成<strong>所在扇区的两个相邻非零矢量 + 零矢量</strong>的时间组合。
+          </p>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            <strong>第一步：扇区判断（N 值法）</strong>。由 αβ 算 3 个中间量，再合成 N（bit2/1/0），N 直接对应扇区号 1~6：
+          </p>
+          <div class="code-block"><span class="code-comment">/* 标准七段式 SVPWM 第一步：判断扇区（输入 αβ，输出扇区号 1~6）*/</span>
+<span class="code-keyword">uint8_t</span> <span class="code-func">SVPWM_Sector</span>(<span class="code-keyword">float</span> valpha, <span class="code-keyword">float</span> vbeta) {
+  <span class="code-keyword">float</span> vref = <span class="code-func">fabsf</span>(valpha);   <span class="code-comment">// 占位，实际用下方公式</span>
+  <span class="code-comment">// 三个判断量</span>
+  <span class="code-keyword">float</span> a = vbeta;
+  <span class="code-keyword">float</span> b = (-vbeta + <span class="code-number">1.7320508f</span> * valpha) * <span class="code-number">0.5f</span>;  <span class="code-comment">// √3/2·α - 1/2·β</span>
+  <span class="code-keyword">float</span> c = (-vbeta - <span class="code-number">1.7320508f</span> * valpha) * <span class="code-number">0.5f</span>;
+  <span class="code-comment">// N = sign(a)<<2 | sign(b)<<1 | sign(c)；再映射成扇区</span>
+  <span class="code-keyword">uint8_t</span> N = <span class="code-number">0</span>;
+  <span class="code-keyword">if</span> (a &gt; <span class="code-number">0</span>) N |= <span class="code-number">4</span>;
+  <span class="code-keyword">if</span> (b &gt; <span class="code-number">0</span>) N |= <span class="code-number">2</span>;
+  <span class="code-keyword">if</span> (c &gt; <span class="code-number">0</span>) N |= <span class="code-number">1</span>;
+  <span class="code-comment">// N 值(1~6)与扇区的查表映射</span>
+  <span class="code-keyword">static const uint8_t</span> SEC_MAP[<span class="code-number">7</span>] = {<span class="code-number">0</span>,<span class="code-number">2</span>,<span class="code-number">6</span>,<span class="code-number">1</span>,<span class="code-number">4</span>,<span class="code-number">3</span>,<span class="code-number">5</span>};
+  <span class="code-keyword">return</span> SEC_MAP[N];   <span class="code-comment">// 返回 1~6</span>
+}</div>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2 mt-3">
+            <strong>第二步：相邻矢量作用时间 T1/T2</strong>。由扇区号查表得该扇区的两个相邻矢量（如扇区1用 V4、V6），再按下式算作用时间，最后做<strong>过调制判断</strong>（T1+T2&gt;Ts 时按比例缩小）：
+          </p>
+          <div class="code-block"><span class="code-comment">/* 第二步：算 T1/T2（Ts=PWM周期，X/Y/Z 为 αβ 的线性组合）*/</span>
+<span class="code-keyword">float</span> X = (<span class="code-number">1.7320508f</span> * Ts / Vdc) * vbeta;
+<span class="code-keyword">float</span> Y = (Ts / Vdc) * (<span class="code-number">0.866f</span> * vbeta + <span class="code-number">1.5f</span> * valpha);
+<span class="code-keyword">float</span> Z = (Ts / Vdc) * (<span class="code-number">0.866f</span> * vbeta - <span class="code-number">1.5f</span> * valpha);
+<span class="code-comment">// 不同扇区取 (T1,T2) = 不同的 (-Z,X) / (Z,-X) / ... 查表</span>
+<span class="code-comment">// 过调制处理：if(T1+T2>Ts){T1*=Ts/(T1+T2); T2*=Ts/(T1+T2);}</span>
+<span class="code-comment">// T0 = Ts - T1 - T2 为零矢量时间，平均分给 V0 和 V7</span></div>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2 mt-3">
+            <strong>第三步：七段式对称分配</strong>。把一个 PWM 周期 Ts 切成 7 段，按 <strong>V0→V4→V6→V7→V6→V4→V0</strong>（扇区1为例）的顺序对称排列，零矢量 V0/V7 各占一半并放在两端和中点。这样得到三相的<strong>比较值 Tcmp1/2/3</strong>，写入定时器 CCR 即生成对称 PWM，谐波最小：
+          </p>
+          <div class="info-box warning mt-3"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg><div><strong>简化版 vs 标准版的取舍</strong>：简化版（中点注入）代码 20 行、利用率 87%；标准七段式代码 100+ 行、利用率 90.6%、波形更对称（谐波小）。DIY/学习阶段用简化版完全够；量产高精度伺服才上标准版。STM32 MC SDK、VESC 都提供了标准 SVPWM 的参考实现，建议先读懂简化版再看标准版。</div></div>
+
           <h3 class="text-lg font-semibold mb-3 mt-6">七、FOC电流环主循环</h3>
           <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
             把上面所有步骤串起来，在 PWM 定时器中断里高频调用（如 10kHz）：
@@ -1477,7 +1515,50 @@ TIM_HandleTypeDef htim1;
           </table></div>
           <div class="info-box warning mt-3"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg><div><strong>混用是大坑</strong>：如果你的 Clarke 用 2/3（幅值不变），但参考代码用 √(2/3)（功率不变），PID 参数会差 √2 倍，调出来的电机力矩完全不对。移植代码时第一件事就是确认对方的变换系数。</div></div>
 
-          <h3 class="text-lg font-semibold mb-3 mt-6">五、几何直观：从旋转到静止</h3>
+          <h3 class="text-lg font-semibold mb-3 mt-6">五、坐标变换的 C 实现（纯算法）</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            下面是幅值不变版（2/3）的完整实现。注意 <strong>sin/cos 用查表或硬件近似</strong>避免在每个 PWM 周期调用昂贵的库函数。三个函数 Clarke/Park/InvPark 加起来不到 20 行，是 FOC 的数学核心：
+          </p>
+          <div class="code-block"><span class="code-comment">/* 坐标变换：幅值不变版（2/3）。输入电流/电压均可 */</span>
+<span class="code-comment">// 1/√3 ≈ 0.57735，避免实时开方</span>
+<span class="code-keyword">#define</span> ONE_BY_SQRT3  <span class="code-number">0.57735026919f</span>
+
+<span class="code-comment">/* Clarke 变换：三相 ia,ib → 两相静止 ialpha,ibeta
+ * (利用 ia+ib+ic=0，只需两相输入即可) */</span>
+<span class="code-keyword">static inline void</span> <span class="code-func">Clarke</span>(<span class="code-keyword">float</span> ia, <span class="code-keyword">float</span> ib,
+                         <span class="code-keyword">float</span> *ialpha, <span class="code-keyword">float</span> *ibeta) {
+  *ialpha = ia;
+  *ibeta  = (ia + <span class="code-number">2.0f</span> * ib) * ONE_BY_SQRT3;
+}
+
+<span class="code-comment">/* Park 变换：静止 αβ → 旋转 dq（θ 为转子电角度，弧度）*/</span>
+<span class="code-keyword">static inline void</span> <span class="code-func">Park</span>(<span class="code-keyword">float</span> ialpha, <span class="code-keyword">float</span> ibeta,
+                        <span class="code-keyword">float</span> sin_t, <span class="code-keyword">float</span> cos_t,
+                        <span class="code-keyword">float</span> *id, <span class="code-keyword">float</span> *iq) {
+  *id = ialpha * cos_t + ibeta * sin_t;
+  *iq = -ialpha * sin_t + ibeta * cos_t;
+}
+
+<span class="code-comment">/* 反 Park 变换：旋转 dq → 静止 αβ（PI 输出后用）*/</span>
+<span class="code-keyword">static inline void</span> <span class="code-func">InvPark</span>(<span class="code-keyword">float</span> vd, <span class="code-keyword">float</span> vq,
+                           <span class="code-keyword">float</span> sin_t, <span class="code-keyword">float</span> cos_t,
+                           <span class="code-keyword">float</span> *valpha, <span class="code-keyword">float</span> *vbeta) {
+  *valpha = vd * cos_t - vq * sin_t;
+  *vbeta  = vd * sin_t + vq * cos_t;
+}
+
+<span class="code-comment">/* sin/cos 同时计算：用一次 sin 即可，cos = sin(θ+π/2)，
+ * 或用硬件近似(SVPWM查表)。这里示意：*/</span>
+<span class="code-keyword">extern float</span> <span class="code-func">fast_sin</span>(<span class="code-keyword">float</span> rad);  <span class="code-comment">// 查表或泰勒展开，平台相关</span></div>
+          <div class="info-box tip mt-3"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>定点化优化</strong>：在无 FPU 的 MCU（如 STM32F1）上，把 float 换成 Q15/Q16 定点数，sin/cos 查 512 点表，整个变换链可在 &lt;1μs 完成。SimpleFOC 库就提供了定点版本。</div></div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">六、交互演示：拖动 θ 观察变换过程</h3>
+          <div class="svg-figure">
+            <div data-chart="foc" class="chart-container" style="min-height:380px"></div>
+          </div>
+          <div class="info-box info mt-3"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>关键观察</strong>：拖动 θ，左图三相向量 a/b/c 一直在旋转（交流），数值正负变化；但右图 dq 里的 <strong>Iq 始终≈1.0、Id≈0</strong>（直流常量）。这就是 Park 变换"把交流变直流"的几何真相——坐标系跟着转子一起转，相对运动消失。点"自动旋转"可看连续动画。</div></div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">七、几何直观：从旋转到静止</h3>
           <div class="step-list">
             <div class="step-item"><div><strong>abc 三相</strong>：三个互差120°的旋转向量，合成一个旋转磁场。难以直接控制（三个量都在变）。</div></div>
             <div class="step-item"><div><strong>αβ 两相</strong>：Clarke 把三个向量合成为两个正交向量，仍在旋转，但少了一个维度。</div></div>
@@ -1606,9 +1687,9 @@ TIM_HandleTypeDef htim1;
       {
         id: 'advanced-multiloop',
         title: '多环控制',
-        desc: '位置环、速度环、电流环的串级控制结构',
+        desc: '位置/速度/电流三环串级、前馈补偿、弱磁控制突破额定转速',
         icon: '🔄',
-        tags: ['控制理论', '伺服'],
+        tags: ['控制理论', '伺服', '弱磁'],
         content: `
           <h3 class="text-lg font-semibold mb-3">三环串级控制</h3>
           <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-4">
@@ -1674,6 +1755,41 @@ TIM_HandleTypeDef htim1;
             </tbody>
           </table></div>
           <div class="info-box warning"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg><div><strong>阶跃响应是金标准</strong>：给一个突变的指令（如电流瞬间从0跳到额定），用串口输出实际值画波形。看<strong>上升时间、超调量、是否振荡</strong>三个指标。这比"看电机转得顺不顺"客观100倍。具体方法见 <a href="#" onclick="navigateTo('engineering-validation');return false;" style="color:var(--primary)">工程验证方法论</a>。</div></div>
+
+          <h3 class="text-lg font-semibold mb-3 mt-6">四、弱磁控制（Field Weakening）——突破额定转速</h3>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            电机的<strong>反电动势随转速线性升高</strong>（E = Ke·n）。当转速高到反电动势接近母线电压时，逆变器输出电压"顶到天花板"，再也无法驱动更多电流，转速达到上限。<strong>弱磁控制</strong>通过<strong>给 d 轴注入负向电流（Id &lt; 0）</strong>，产生与永磁体相反的磁场，削弱气隙合成磁通，从而降低反电动势，让电机突破额定转速继续加速。电动车超车、电动工具高速档、主轴电机都靠它。
+          </p>
+          <div class="formula-block">
+            <div class="text-left">
+              电压约束：$V = \\sqrt{V_d^2 + V_q^2} \\leq V_{max}$<br>
+              稳态时 $V_d \\approx -\\omega L_q I_q$，$V_q \\approx R I_q + \\omega(L_d I_d + \\psi_f)$<br>
+              注入 $I_d &lt; 0$ → $\\omega(L_d I_d + \\psi_f)$ 减小 → $V_q$ 下降 → 释放电压裕量 → 可继续升速
+            </div>
+            <div class="text-sm text-gray-500 mt-2">ψf 为永磁体磁链，ω 为电角速度。弱磁区电流轨迹从 Id=0 沿椭圆向 Id 负方向移动</div>
+          </div>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2 mt-3">
+            工程实现常用<strong>电压反馈法</strong>：实时监测电压利用率，超过阈值（如 90%）就用 PI 控制器逐步把 Id 拉负；退出高速区时再缓慢释放。关键：<strong>弱磁电流不能突变</strong>（否则磁链剧烈变化引起电流尖峰），必须限速率。框架如下：
+          </p>
+          <div class="code-block"><span class="code-keyword">typedef struct</span> {
+  <span class="code-keyword">float</span> vutil_thresh;   <span class="code-comment">// 电压利用率阈值(如0.9)，超过即启动弱磁</span>
+  <span class="code-keyword">float</span> id_fw_min;      <span class="code-comment">// Id 下限(负值，防过弱磁退磁)</span>
+  <span class="code-keyword">float</span> integ;          <span class="code-comment">// PI积分项</span>
+  <span class="code-keyword">float</span> kp, ki;         <span class="code-comment">// 弱磁PI参数(整定要慢、稳)</span>
+} FieldWeakening_t;
+
+<span class="code-comment">/* 弱磁环：输入当前电压利用率 vutil 和 Id 反馈，输出弱磁 Id 指令
+ * 与正常 Id_ref=0 取小(更负者)，保证弱磁优先 */</span>
+<span class="code-keyword">float</span> <span class="code-func">FW_Update</span>(FieldWeakening_t *fw, <span class="code-keyword">float</span> vutil, <span class="code-keyword">float</span> dt) {
+  <span class="code-keyword">float</span> err = vutil - fw->vutil_thresh;   <span class="code-comment">// &gt;0 说明电压不够，需弱磁</span>
+  fw->integ += fw->ki * err * dt;
+  <span class="code-keyword">float</span> id_fw = fw->kp * err + fw->integ;
+  <span class="code-comment">// Id 只能往负走(弱磁)，且不能低于退磁极限</span>
+  <span class="code-keyword">if</span> (id_fw &gt; <span class="code-number">0</span>) { id_fw = <span class="code-number">0</span>; fw->integ = <span class="code-number">0</span>; }     <span class="code-comment">// 正常区不弱磁</span>
+  <span class="code-keyword">if</span> (id_fw &lt; fw->id_fw_min) id_fw = fw->id_fw_min;
+  <span class="code-keyword">return</span> id_fw;   <span class="code-comment">// 最终 Id_ref = min(0, id_fw)</span>
+}</div>
+          <div class="info-box warning mt-3"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg><div><strong>弱磁的代价与风险</strong>：① <strong>扭矩下降</strong>——磁通减弱，同样电流产生的力矩变小，进入"恒功率区"（高速低扭）；② <strong>退磁风险</strong>——Id 过负可能永久退磁永磁体，必须严格限幅；③ <strong>失步风险</strong>——弱磁区瞬态响应变差，负载突变易失步。这些是高级话题，<strong>建议在普通 FOC 玩熟后再尝试</strong>，且务必有<strong>过压/过流硬件保护</strong>（见 <a href="#" onclick="navigateTo('advanced-protection');return false;" style="color:var(--primary)">驱动器保护机制</a>）兜底。</div></div>
         `,
       },
       {
@@ -4592,6 +4708,7 @@ const QuizData = {
   ],
   'advanced-coord': [
     { question: 'Clarke变换的目的是？', options: ['将直流变为交流', '将三相变为两相', '将电压变为电流', '将转矩变为速度'], answer: 1, explanation: 'Clarke变换将三相静止坐标系(a,b,c)映射到两相静止坐标系(α,β)，减少一个维度，便于后续的Park变换。' },
+    { question: 'Park变换后，原本随时间正弦变化的三相电流在dq坐标系下变成什么？', options: ['仍是正弦交流', '变为恒定的直流量', '变成零', '变得更大'], answer: 1, explanation: 'Park变换让坐标系跟随转子一起旋转，相对运动消失，原本旋转的交流量在dq里变成恒定直流量。这是FOC能用PI控制器的根本前提(PI擅长控直流量)。拖动本节交互图的θ，可看到右图Iq始终是常量。' },
   ],
   'advanced-sensorless': [
     { question: '无感控制在零速时为什么无法工作？', options: ['电机无法启动', '没有反电动势可检测', '编码器故障', '电流过大'], answer: 1, explanation: 'SMO等无感方法依赖反电动势来估算转子位置，而零速时反电动势为零。通常需要开环启动或高频注入（HFI）来启动。' },
@@ -4599,6 +4716,7 @@ const QuizData = {
   'advanced-multiloop': [
     { question: '三环串级控制中，应该最先调试哪个环？', options: ['位置环', '速度环', '电流环', '同时调试'], answer: 2, explanation: '调试顺序由内到外：先调电流环（响应最快）→ 再调速度环 → 最后调位置环。内环稳定后再调外环。' },
     { question: '电流环的带宽通常为？', options: ['10-100Hz', '100-500Hz', '1-10kHz', '10-100kHz'], answer: 2, explanation: '电流环（最内环）带宽最高，约1-10kHz。速度环约100-500Hz，位置环约10-100Hz。内环频率约为外环的10倍。' },
+    { question: '弱磁控制(Field Weakening)通过什么方式让电机突破额定转速？', options: ['提高母线电压', '给d轴注入负向电流削弱气隙磁通，降低反电动势', '加大Iq电流', '降低PWM频率'], answer: 1, explanation: '转速升高时反电动势接近母线电压，电压"顶到天花板"。弱磁通过Id<0产生与永磁体相反的磁场，削弱合成磁通→降低反电动势→释放电压裕量→继续升速。代价是扭矩下降(恒功率区)且有退磁风险。' },
   ],
   'motor-stepper': [
     { question: '步进电机最常见的步距角是多少？', options: ['0.9°', '1.8°', '3.6°', '7.5°'], answer: 1, explanation: '混合式步进电机（最常用）的标准步距角为1.8°，即每转200步。这由转子50个齿和定子4相绕组决定。' },
