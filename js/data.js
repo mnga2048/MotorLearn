@@ -2264,7 +2264,7 @@ Debug_Sample_t g_dbg_buf[DBG_BUF_SIZE];
           </p>
           <div class="code-block"><span class="code-comment">/* 请求帧：主站 → 从站01 */</span>
 从站地址 功能码  起始地址  寄存器数   CRC
-  01      03    00 00    00 0A    C5 CD
+  01      03    00 00    00 0A    CD C5
 
 <span class="code-comment">/* 响应帧：从站01 → 主站（返回20字节=10寄存器×2字节）*/</span>
   01  03  14  [00 00 00 01 ... 共20字节数据]  XX XX
@@ -2311,7 +2311,7 @@ Debug_Sample_t g_dbg_buf[DBG_BUF_SIZE];
   buf[<span class="code-number">7</span>] = crc &gt;&gt; <span class="code-number">8</span>;        <span class="code-comment">// CRC高字节</span>
   <span class="code-keyword">return</span> <span class="code-number">8</span>;              <span class="code-comment">// 总长8字节</span>
 }</div>
-          <div class="info-box tip mt-3 mb-4"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>动手验证</strong>：把上面那帧 <code>01 03 00 00 00 0A C5 CD</code> 粘进 <a href="#" onclick="navigateTo('tools');return false;" style="color:var(--primary)">工具箱→校验工具</a> 选 Modbus CRC-16，输入前6字节应算出 <code>C5 CD</code>，与帧尾一致即校验通过。</div></div>
+          <div class="info-box tip mt-3 mb-4"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>动手验证</strong>：把上面那帧 <code>01 03 00 00 00 0A CD C5</code> 粘进 <a href="#" onclick="navigateTo('tools');return false;" style="color:var(--primary)">工具箱→校验工具</a> 选 Modbus CRC-16，输入前6字节应算出 <code>CD C5</code>（低字节在前），与帧尾一致即校验通过。或直接用"Modbus RTU 解析"标签页一键拆解全帧。</div></div>
 
           <h3 class="text-lg font-semibold mb-3 mt-6">四、CAN 总线与 CANopen</h3>
           <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">

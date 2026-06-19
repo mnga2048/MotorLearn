@@ -10,7 +10,27 @@ const Validator = (() => {
     { id: 'xor', label: 'XOR 校验', info: '所有字节逐位异或（BCC），最简单的校验方式', bytes: 1 },
     { id: 'sum', label: '累加和', info: '所有字节求和后 <b>& 0xFF</b>，常用于简单串口协议', bytes: 1 },
     { id: 'negate', label: '取反校验', info: '帧格式：<b>FF FF</b> 帧头 + 数据 + 校验字节。校验 = <b>~(数据求和) & 0xFF</b>', bytes: 1 },
+    { id: 'modbus-parse', label: 'Modbus RTU 解析', info: '结构化解析一帧完整报文：<b>从站地址 + 功能码 + 数据 + CRC</b>，自动识别功能码含义、拆解字段、复核CRC、识别异常响应', special: true, bytes: 0 },
   ];
+
+  // Modbus 功能码含义表
+  const modbusFuncCodes = {
+    0x01: '读线圈(Read Coils)',
+    0x02: '读离散输入(Read Discrete Inputs)',
+    0x03: '读保持寄存器(Read Holding Registers)',
+    0x04: '读输入寄存器(Read Input Registers)',
+    0x05: '写单个线圈(Write Single Coil)',
+    0x06: '写单个寄存器(Write Single Register)',
+    0x0F: '写多个线圈(Write Multiple Coils)',
+    0x10: '写多个寄存器(Write Multiple Registers)',
+  };
+  const modbusExceptCodes = {
+    0x01: '非法功能码',
+    0x02: '非法数据地址',
+    0x03: '非法数据值',
+    0x04: '从站故障',
+    0x06: '从站忙',
+  };
 
   // ========== CRC 查找表 ==========
   const crc16Table = (() => {
@@ -143,7 +163,7 @@ const Validator = (() => {
     if (!container) return;
     container.innerHTML = `
       <div class="val-tabs">
-        ${algorithms.map(a => `<button class="val-tab-btn${a.id === currentAlgo ? ' active' : ''}" onclick="Validator.switchAlgo('${a.id}')">${a.label}</button>`).join('')}
+        ${algorithms.map(a => `<button class="val-tab-btn${a.id === currentAlgo ? ' active' : ''}" data-algo="${a.id}" onclick="Validator.switchAlgo('${a.id}')">${a.label}</button>`).join('')}
       </div>
       <div id="val-panel">${renderAlgoPanel(currentAlgo)}</div>
     `;
@@ -152,6 +172,7 @@ const Validator = (() => {
   function renderAlgoPanel(algoId) {
     const algo = algorithms.find(a => a.id === algoId);
     if (!algo) return '';
+    if (algo.special && algoId === 'modbus-parse') return renderModbusPanel();
     return `
       <div class="formula-block text-sm mb-4">
         <div style="text-align:left">${algo.info}</div>
@@ -213,6 +234,12 @@ const Validator = (() => {
     const algo = algorithms.find(a => a.id === currentAlgo);
     const algoId = currentAlgo;
     const ds = dataStr(data);
+
+    // Modbus RTU 帧解析（特殊模式）
+    if (algoId === 'modbus-parse') {
+      parseModbusFrame(data);
+      return;
+    }
 
     // 取反校验的特殊处理
     if (algoId === 'negate') {
@@ -333,7 +360,7 @@ const Validator = (() => {
 
   function switchAlgo(algoId) {
     currentAlgo = algoId;
-    document.querySelectorAll('.val-tab-btn').forEach(b => b.classList.toggle('active', b.textContent === algorithms.find(a => a.id === algoId)?.label));
+    document.querySelectorAll('.val-tab-btn').forEach(b => b.classList.toggle('active', b.dataset.algo === algoId));
     const panel = document.getElementById('val-panel');
     if (panel) panel.innerHTML = renderAlgoPanel(algoId);
   }
@@ -348,5 +375,128 @@ const Validator = (() => {
     calculate();
   }
 
-  return { render, calculate, clear, copy, switchAlgo, loadHistory };
+  // ========== Modbus RTU 帧解析面板 ==========
+  function renderModbusPanel() {
+    return `
+      <div class="formula-block text-sm mb-4">
+        <div style="text-align:left">输入一帧<strong>完整 Modbus RTU 报文</strong>（含 CRC），自动拆解字段、识别功能码、复核 CRC。<br>支持正常响应与异常响应（功能码最高位置1）。功能码 03/04/06/10 字段已结构化解析。</div>
+      </div>
+      <label style="display:block;font-size:0.8125rem;font-weight:500;color:var(--text-secondary);margin-bottom:6px">
+        输入完整帧（十六进制）
+      </label>
+      <textarea id="val-input" class="val-textarea" placeholder="示例：01 03 02 00 0A 38 43&#10;(从站01 功能码03 读1个寄存器 值=000A)" rows="3">01 03 02 00 0A 38 43</textarea>
+      <div class="val-btn-row">
+        <button class="val-btn-primary" onclick="Validator.calculate()">解析帧</button>
+        <button class="val-btn-secondary" onclick="Validator.loadModbusExample('read')">示例:读</button>
+        <button class="val-btn-secondary" onclick="Validator.loadModbusExample('write')">示例:写</button>
+        <button class="val-btn-secondary" onclick="Validator.loadModbusExample('except')">示例:异常</button>
+        <button class="val-btn-secondary" onclick="Validator.clear()">清空</button>
+      </div>
+      <div id="val-result" class="val-result-area"></div>
+    `;
+  }
+
+  const modbusExamples = {
+    read:    '01 03 00 00 00 0A CD C5',   // 读保持寄存器请求(读10个)
+    write:   '01 06 00 01 00 05 18 09',   // 写单寄存器请求(地址1=值5)
+    except:  '01 83 02 C0 F1',            // 异常响应(功能码03|0x80, 非法地址)
+  };
+
+  function loadModbusExample(type) {
+    const input = document.getElementById('val-input');
+    if (input && modbusExamples[type]) input.value = modbusExamples[type];
+    calculate();
+  }
+
+  function parseModbusFrame(data) {
+    const result = document.getElementById('val-result');
+    if (!result) return;
+    result.style.display = 'block';
+
+    // 最小长度校验：从站(1)+功能码(1)+CRC(2) = 4字节
+    if (data.length < 4) {
+      result.innerHTML = `<div style="color:var(--danger);padding:10px;border:1px solid var(--danger);border-radius:6px;font-size:13px">帧太短：Modbus RTU 至少 4 字节（从站+功能码+CRC），当前 ${data.length} 字节</div>`;
+      return;
+    }
+
+    const slave = data[0];
+    const funcRaw = data[1];
+    const isException = (funcRaw & 0x80) !== 0;
+    const funcCode = funcRaw & 0x7F;
+    const payload = data.slice(0, -2);          // 去 CRC 部分
+    const recvCrc = data[data.length - 2] | (data[data.length - 1] << 8);  // 低字节在前
+    const calcCrc = compute('crc16', payload);
+
+    // 构建解析结果行
+    const rows = [];
+    rows.push({ k: '从站地址', v: `${slave} (0x${hex2(slave)})`, note: slave === 0 ? '广播(所有从站响应)' : (slave > 247 ? '非法(应≤247)' : '') });
+    rows.push({ k: '功能码', v: `0x${hex2(funcRaw)}`, note: isException ? `<span style="color:var(--danger)">异常响应！基础功能码 0x${hex2(funcCode)} = ${modbusFuncCodes[funcCode] || '未知'}</span>` : (modbusFuncCodes[funcCode] || '非标准功能码') });
+
+    // 数据区解析（按功能码）
+    const dataField = data.slice(2, -2);  // 去掉从站、功能码、CRC
+    if (isException) {
+      const errCode = dataField[0];
+      rows.push({ k: '异常码', v: `0x${hex2(errCode)}`, note: modbusExceptCodes[errCode] || '未知异常' });
+    } else {
+      // 03/04 请求：起始地址(2)+数量(2)
+      if ((funcCode === 0x03 || funcCode === 0x04) && dataField.length === 4) {
+        const startReg = (dataField[0] << 8) | dataField[1];
+        const qty = (dataField[2] << 8) | dataField[3];
+        rows.push({ k: '起始寄存器', v: `${startReg} (0x${hexN(startReg, 1).replace(' ', '')})`, note: '请求帧：读操作' });
+        rows.push({ k: '寄存器数量', v: `${qty} 个`, note: qty > 125 ? '超出上限(125)' : '' });
+      }
+      // 03/04 响应：字节数(1)+数据(N)
+      else if ((funcCode === 0x03 || funcCode === 0x04) && dataField.length >= 1) {
+        const byteCount = dataField[0];
+        const regData = dataField.slice(1, 1 + byteCount);
+        const regVals = [];
+        for (let i = 0; i + 1 < regData.length; i += 2) regVals.push((regData[i] << 8) | regData[i + 1]);
+        rows.push({ k: '数据字节数', v: `${byteCount}`, note: '响应帧' });
+        rows.push({ k: '寄存器值', v: regVals.length ? regVals.map(v => '0x' + hexN(v, 1).replace(' ', '') + '(' + v + ')').join(' ') : '-', note: `${regVals.length} 个寄存器` });
+      }
+      // 06 写单个寄存器：地址(2)+数据(2)
+      else if (funcCode === 0x06 && dataField.length === 4) {
+        const regAddr = (dataField[0] << 8) | dataField[1];
+        const regVal = (dataField[2] << 8) | dataField[3];
+        rows.push({ k: '寄存器地址', v: `${regAddr} (0x${hexN(regAddr, 1).replace(' ', '')})`, note: '写单个寄存器' });
+        rows.push({ k: '写入值', v: `${regVal} (0x${hexN(regVal, 1).replace(' ', '')})`, note: '请求与响应帧相同(回显)' });
+      }
+      // 10 写多个寄存器：请求 地址(2)+数量(2)+字节数(1)+数据(N)
+      else if (funcCode === 0x10 && dataField.length >= 5) {
+        const startReg = (dataField[0] << 8) | dataField[1];
+        const qty = (dataField[2] << 8) | dataField[3];
+        rows.push({ k: '起始寄存器', v: `${startReg}`, note: '写多个寄存器请求' });
+        rows.push({ k: '写入数量', v: `${qty} 个`, note: '' });
+      }
+      // 10 响应：地址(2)+数量(2)
+      else if (funcCode === 0x10 && dataField.length === 4) {
+        const startReg = (dataField[0] << 8) | dataField[1];
+        const qty = (dataField[2] << 8) | dataField[3];
+        rows.push({ k: '起始寄存器', v: `${startReg}`, note: '写多个寄存器响应' });
+        rows.push({ k: '已写数量', v: `${qty} 个`, note: '' });
+      }
+      else {
+        rows.push({ k: '数据区', v: dataField.length ? dataStr(dataField) : '(空)', note: `共 ${dataField.length} 字节，未自动结构化` });
+      }
+    }
+
+    // CRC 校验
+    const crcOk = recvCrc === calcCrc;
+    rows.push({ k: 'CRC校验', v: `接收 0x${hexN(recvCrc,1).replace(' ','')} | 计算 0x${hexN(calcCrc,1).replace(' ','')}`, note: crcOk ? '<span style="color:var(--success)">✓ 通过</span>' : '<span style="color:var(--danger)">✗ 不匹配</span>' });
+    rows.push({ k: '完整帧', v: dataStr(data), note: `共 ${data.length} 字节` });
+
+    result.innerHTML = `
+      <div style="padding:4px 0">
+        ${rows.map((r, i) => `
+          <div class="val-result-row" style="${i === rows.length - 1 ? 'border-bottom:none' : ''}">
+            <span class="val-result-title">${r.k}</span>
+            <span class="val-result-value" style="font-family:Consolas,monospace">${r.v}</span>
+            <span style="font-size:12px;color:var(--text-secondary);flex:1">${r.note || ''}</span>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  return { render, calculate, clear, copy, switchAlgo, loadHistory, loadModbusExample };
 })();
