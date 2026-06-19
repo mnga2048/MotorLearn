@@ -76,7 +76,7 @@ const MotorData = {
     features: [
       { icon: '📖', label: '系统化知识', desc: '入门→进阶→机器人应用，23个知识点按学习路径递进' },
       { icon: '💻', label: '可运行代码', desc: '60+段纯C算法+实战示例，不绑定平台，可直接移植' },
-      { icon: '🎮', label: '交互图表', desc: '8个可交互原理图/波形图（拖拽机械臂、点击H桥、拖动FOC旋转向量）' },
+      { icon: '🎮', label: '交互图表', desc: '10个可交互原理图/波形图（拖拽机械臂、点击H桥、拖动FOC向量、BLDC换向动画、PID响应曲线）' },
       { icon: '🧰', label: '计算器与工具', desc: '14个工程计算器+Modbus帧解析+校验工具，学完即练' },
     ],
     stats: [
@@ -84,6 +84,7 @@ const MotorData = {
       { label: '电机类型', value: '5', color: 'green' },
       { label: '代码示例', value: '60+', color: 'purple' },
       { label: '计算器', value: '14', color: 'orange' },
+      { label: '交互图表', value: '10', color: 'cyan' },
     ],
     quickStart: [
       { id: 'beginner-em', title: '电磁学基础', desc: '从安培力、法拉第定律开始，建立电磁学知识框架', icon: '⚡', color: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600', level: '入门' },
@@ -142,6 +143,33 @@ const MotorData = {
             伸开右手，磁感线穿入手心，大拇指指向导体运动方向，四指所指方向就是感应电动势（电流）方向。
             电动机和发电机本质上是同一装置的两种工作模式。
           </p>
+
+          <h4 class="font-medium mt-6 mb-2">实例计算：一个电机到底能产生多大扭矩</h4>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            把公式用起来，理解才深刻。假设一个直流电机的单根导体长 L = 0.05m（5cm），处在 B = 0.8T 的磁场中，通 I = 2A 电流，导体与磁场垂直（θ=90°，sinθ=1）。求这根导体的受力，以及转子有 200 根导体时的总扭矩：
+          </p>
+          <div class="formula-block">
+            <div class="text-left">
+              单根力：$F = BIL\\sin\\theta = 0.8 \\times 2 \\times 0.05 \\times 1 = 0.08\\,N$<br>
+              转子半径 $r = 0.02\\,m$，单根扭矩 $\\tau_1 = F \\cdot r = 0.08 \\times 0.02 = 0.0016\\,N\\cdot m$<br>
+              200 根导体总扭矩 $\\tau = 200 \\times 0.0016 = 0.32\\,N\\cdot m$
+            </div>
+            <div class="text-sm text-gray-500 mt-2">这就是为什么电机要绕很多匝、用强磁铁——单根导体产生的力很小，靠数量和强磁场叠加。</div>
+          </div>
+
+          <h4 class="font-medium mt-6 mb-2">两个定律如何协同（电机=发电机+电动机）</h4>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            实际运行的电机同时遵循两个定律：通电产生力矩转动（电动机效应），转动又切割磁感线产生反向电动势（发电机效应）。这个<strong>反电动势(Back-EMF)</strong>与外加电压相反，限制了电流：
+          </p>
+          <div class="formula-block">
+            <div class="text-left">
+              电枢方程：$U = E + I \\cdot R$，其中 $E = K_e \\cdot \\omega$（反电动势 ∝ 转速）<br>
+              启动瞬间 ω=0 → E=0 → 启动电流 $I_{start} = U/R$ 很大（需限流）<br>
+              转速上升 → E 增大 → 净电压(U−E)减小 → 电流下降 → 力矩减小 → 转速稳定
+            </div>
+            <div class="text-sm text-gray-500 mt-2">这就是电机自平衡的物理本质，也是启动电流大、堵转电流更大的原因（详见<a href="#" onclick="navigateTo('advanced-protection');return false;" style="color:var(--primary)">驱动器保护</a>）。</div>
+          </div>
+          <div class="info-box tip"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>记忆口诀</strong>：左手电动机（通电→受力→转动），右手发电机（转动→感应电动势）。两者都是磁感线穿手心，区别在"四指"代表电流(左手)还是电动势(右手)。KV值、Kt、Ke 这些参数的本质都来自这两个定律——详见 <a href="#" onclick="navigateTo('beginner-params');return false;" style="color:var(--primary)">基本参数</a>。</div></div>
         `,
       },
       {
@@ -212,6 +240,34 @@ const MotorData = {
               <tr><td class="font-medium">低成本大扭矩定位</td><td>堵转力矩大、定位准</td><td>步进(配减速)</td><td>低速扭矩大，价格远低于伺服</td></tr>
             </tbody>
           </table></div>
+
+          <h4 class="font-medium mt-6 mb-2">实战演练：三个项目分别该选什么电机</h4>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div class="p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+              <div class="font-medium mb-2 text-base">🔧 项目A：3D打印机（XYZ轴）</div>
+              <div class="text-sm text-gray-500 space-y-1">
+                <div><strong>需求</strong>：定位精度0.01mm，低速，成本敏感</div>
+                <div><strong>选型</strong>：NEMA17步进 + TMC2209驱动 + 16细分</div>
+                <div><strong>理由</strong>：开环即可精确定位，单台电机30-80元，无需编码器。配8mm丝杆，1步=0.01mm，正好满足精度。</div>
+              </div>
+            </div>
+            <div class="p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+              <div class="font-medium mb-2 text-base">🚁 项目B：穿越机电调</div>
+              <div class="text-sm text-gray-500 space-y-1">
+                <div><strong>需求</strong>：转速30000+RPM，响应&lt;2ms，轻量</div>
+                <div><strong>选型</strong>：2207规格高KV(2300KV)无刷 + BLHeli_32 ESC</div>
+                <div><strong>理由</strong>：有刷电刷在3万转下几天就磨损；无刷效率高、寿命长、响应快。KV2300×11.1V≈25500RPM空载。</div>
+              </div>
+            </div>
+            <div class="p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+              <div class="font-medium mb-2 text-base">🤖 项目C：6轴机械臂关节</div>
+              <div class="text-sm text-gray-500 space-y-1">
+                <div><strong>需求</strong>：定位精度0.05°，大扭矩，平滑加减速</div>
+                <div><strong>选型</strong>：谐波减速器 + 绝对值编码器伺服</div>
+                <div><strong>理由</strong>：步进会丢步且振动大，无法满足；伺服闭环+谐波减速(100:1)实现大扭矩高精度，且支持S曲线平滑加减速。</div>
+              </div>
+            </div>
+          </div>
           <div class="info-box tip mt-3">
             <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
             <div><strong>三条经验法则</strong>：① 精度要求 &lt; 1° 且预算紧 → 步进；精度 &lt; 0.1° 或需高速 → 伺服。② 需要长时间连续高速旋转 → 优先无刷（有刷电刷会磨损）。③ 不确定时，先从<strong>步进+舵机</strong>入门（最简单），再进阶无刷和伺服。</div>
@@ -476,6 +532,11 @@ TIM_HandleTypeDef htim1;
               <tr><td class="font-medium">Kd</td><td>超调大</td><td>噪声放大、高频抖动</td></tr>
             </tbody>
           </table></div>
+
+          <div class="svg-figure mt-4">
+            <div data-chart="pid-response" class="chart-container" style="min-height:360px"></div>
+            <div class="text-center text-xs mt-1" style="color:var(--text-secondary)">图：交互式PID阶跃响应——拖动滑块调Kp/Ki/Kd，观察响应曲线、超调量变化。试试Kp调大看振荡、Kd调大看超调减小</div>
+          </div>
         `,
       },
       {
@@ -1008,6 +1069,11 @@ TIM_HandleTypeDef htim1;
             <div class="text-center text-xs mt-1" style="color:var(--text-secondary)">图：3路霍尔信号互错120°电角度，6次跳变划分6个换向区间（鼠标悬停看电平）</div>
           </div>
 
+          <div class="svg-figure mt-4">
+            <div data-chart="bldc" class="chart-container" style="min-height:340px"></div>
+            <div class="text-center text-xs mt-1" style="color:var(--text-secondary)">图：六步换向动画——点"下一步"看每次换向时哪相通电、转子如何跟进。红色A/绿色B/蓝色C代表三相</div>
+          </div>
+
           <div class="info-box warning mt-3">
             <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
             <div><strong>这张表是核心</strong>！不同电机/霍尔安装位置不同，表的顺序可能不一样。实际调试时<strong>必须用示波器抓霍尔波形+相电压</strong>，对照确认你这张表是否正确，否则电机会反转、抖动甚至堵转。</div>
@@ -1397,6 +1463,71 @@ TIM_HandleTypeDef htim1;
             <strong>第三步：七段式对称分配</strong>。把一个 PWM 周期 Ts 切成 7 段，按 <strong>V0→V4→V6→V7→V6→V4→V0</strong>（扇区1为例）的顺序对称排列，零矢量 V0/V7 各占一半并放在两端和中点。这样得到三相的<strong>比较值 Tcmp1/2/3</strong>，写入定时器 CCR 即生成对称 PWM，谐波最小：
           </p>
           <div class="info-box warning mt-3"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg><div><strong>简化版 vs 标准版的取舍</strong>：简化版（中点注入）代码 20 行、利用率 87%；标准七段式代码 100+ 行、利用率 90.6%、波形更对称（谐波小）。DIY/学习阶段用简化版完全够；量产高精度伺服才上标准版。STM32 MC SDK、VESC 都提供了标准 SVPWM 的参考实现，建议先读懂简化版再看标准版。</div></div>
+
+          <h4 class="font-medium mt-5 mb-2">附录：标准七段式 SVPWM 完整可运行 C 实现</h4>
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
+            下面是一份可直接移植的完整实现：输入 αβ 目标电压和母线电压，输出三相比较值 Tcmp1/2/3（写入定时器 CCR 即可生成对称七段式 PWM）。涵盖扇区判断、T1/T2 计算、过调制处理、零矢量分配四步：
+          </p>
+          <div class="code-block"><span class="code-comment">/* 标准七段式 SVPWM —— 输入 αβ 目标电压，输出三相比较值 Tcmp1/2/3
+ * 调用：每个 PWM 周期，反 Park 得到 Vα/Vβ 后调用一次
+ * 输出 Tcmp 写入 TIMx->CCR1/2/3（中央对齐模式，ARR=Ts计数周期）*/</span>
+<span class="code-keyword">#define</span> SQRT3      <span class="code-number">1.7320508f</span>   <span class="code-comment">// √3</span>
+<span class="code-keyword">#define</span> SQRT3_BY2  <span class="code-number">0.8660254f</span>   <span class="code-comment">// √3/2</span>
+<span class="code-keyword">#define</span> THREE_BY2  <span class="code-number">1.5f</span>          <span class="code-comment">// 3/2</span>
+
+<span class="code-comment">/* 扇区号 → (T1公式, T2公式) 的查表映射
+ * N值(bit组合)→扇区1~6，每个扇区对应两个相邻矢量 */</span>
+<span class="code-keyword">static const int</span> sv_sec[<span class="code-number">7</span>] = {<span class="code-number">0</span>,<span class="code-number">2</span>,<span class="code-number">6</span>,<span class="code-number">1</span>,<span class="code-number">4</span>,<span class="code-number">3</span>,<span class="code-number">5</span>}; <span class="code-comment">// 索引N(1..6)→扇区号</span>
+
+<span class="code-keyword">typedef struct</span> { <span class="code-keyword">float</span> t1, t2, tcmpa, tcmpb, tcmpc; } Svpwm_t;
+
+<span class="code-comment">/* 主函数：Ts=PWM周期(计数), Vdc=母线电压, valpha/vbeta=目标电压 */</span>
+<span class="code-keyword">void</span> <span class="code-func">SVPWM_Calc</span>(<span class="code-keyword">float</span> valpha, <span class="code-keyword">float</span> vbeta, <span class="code-keyword">float</span> Vdc,
+               <span class="code-keyword">float</span> Ts, Svpwm_t *out) {
+  <span class="code-comment">// 第一步：算 X/Y/Z 三个中间量</span>
+  <span class="code-keyword">float</span> k = Ts / Vdc;
+  <span class="code-keyword">float</span> X = SQRT3 * k * vbeta;                              <span class="code-comment">// √3·k·Vβ</span>
+  <span class="code-keyword">float</span> Y = k * ( SQRT3_BY2 * vbeta + THREE_BY2 * valpha); <span class="code-comment">// (√3/2·Vβ + 3/2·Vα)·k</span>
+  <span class="code-keyword">float</span> Z = k * (-SQRT3_BY2 * vbeta + THREE_BY2 * valpha); <span class="code-comment">// (-√3/2·Vβ + 3/2·Vα)·k</span>
+
+  <span class="code-comment">// 第二步：扇区判断（N值法，3个判断量的符号组合）</span>
+  <span class="code-keyword">int</span> N = <span class="code-number">0</span>;
+  <span class="code-keyword">if</span> (vbeta &gt; <span class="code-number">0</span>)               N |= <span class="code-number">1</span>;
+  <span class="code-keyword">if</span> (-vbeta + SQRT3 * valpha &gt; <span class="code-number">0</span>) N |= <span class="code-number">2</span>;
+  <span class="code-keyword">if</span> (-vbeta - SQRT3 * valpha &gt; <span class="code-number">0</span>) N |= <span class="code-number">4</span>;
+  <span class="code-keyword">int</span> sector = sv_sec[N & <span class="code-number">7</span>];        <span class="code-comment">// N∈1..6 → 扇区号1..6</span>
+
+  <span class="code-comment">// 第三步：按扇区查表取 T1/T2（相邻矢量作用时间）</span>
+  <span class="code-keyword">float</span> T1 = <span class="code-number">0</span>, T2 = <span class="code-number">0</span>;
+  <span class="code-keyword">switch</span> (sector) {
+    <span class="code-keyword">case</span> <span class="code-number">1</span>: T1 = -Z; T2 =  X; <span class="code-keyword">break</span>;   <span class="code-comment">// V4,V6</span>
+    <span class="code-keyword">case</span> <span class="code-number">2</span>: T1 =  Z; T2 = -Y; <span class="code-number">0</span>;        <span class="code-comment">// V6,V2 (占位防误)</span>
+    <span class="code-keyword">case</span> <span class="code-number">3</span>: T1 =  X; T2 =  Y; <span class="code-number">0</span>;        <span class="code-comment">// V2,V3</span>
+    <span class="code-keyword">case</span> <span class="code-number">4</span>: T1 =  Z; T2 = -X; <span class="code-number">0</span>;        <span class="code-comment">// V3,V1</span>
+    <span class="code-keyword">case</span> <span class="code-number">5</span>: T1 = -X; T2 = -Z; <span class="code-number">0</span>;        <span class="code-comment">// V1,V5</span>
+    <span class="code-keyword">case</span> <span class="code-number">6</span>: T1 = -Y; T2 = -Z; <span class="code-number">0</span>;        <span class="code-comment">// V5,V4</span>
+  }
+
+  <span class="code-comment">// 第四步：过调制处理 + 零矢量分配</span>
+  <span class="code-keyword">if</span> (T1 + T2 &gt; Ts) {            <span class="code-comment">// 电压需求超母线，按比例缩小</span>
+    <span class="code-keyword">float</span> k2 = Ts / (T1 + T2);
+    T1 *= k2;  T2 *= k2;
+  }
+  <span class="code-keyword">float</span> T0 = (Ts - T1 - T2) * <span class="code-number">0.5f</span>;  <span class="code-comment">// 零矢量时间，V0和V7各占一半</span>
+  <span class="code-keyword">float</span> Ta = T0, Tb = T0 + T1, Tc = Tb + T2;
+
+  <span class="code-comment">// 第五步：按扇区分配三相比较值（七段式对称中心对齐）</span>
+  <span class="code-keyword">switch</span> (sector) {
+    <span class="code-keyword">case</span> <span class="code-number">1</span>: out-&gt;tcmpa=Ta; out-&gt;tcmpb=Tb; out-&gt;tcmpc=Tc; <span class="code-keyword">break</span>;
+    <span class="code-keyword">case</span> <span class="code-number">2</span>: out-&gt;tcmpa=Tb; out-&gt;tcmpb=Ta; out-&gt;tcmpc=Tc; <span class="code-number">0</span>; <span class="code-keyword">break</span>;
+    <span class="code-keyword">case</span> <span class="code-number">3</span>: out-&gt;tcmpa=Tc; out-&gt;tcmpb=Ta; out-&gt;tcmpc=Tb; <span class="code-number">0</span>; <span class="code-keyword">break</span>;
+    <span class="code-keyword">case</span> <span class="code-number">4</span>: out-&gt;tcmpa=Tc; out-&gt;tcmpb=Tb; out-&gt;tcmpc=Ta; <span class="code-keyword">break</span>;
+    <span class="code-keyword">case</span> <span class="code-number">5</span>: out-&gt;tcmpa=Tb; out-&gt;tcmpb=Tc; out-&gt;tcmpc=Ta; <span class="code-keyword">break</span>;
+    <span class="code-keyword">case</span> <span class="code-number">6</span>: out-&gt;tcmpa=Ta; out-&gt;tcmpb=Tc; out-&gt;tcmpc=Tb; <span class="code-number">0</span>; <span class="code-keyword">break</span>;
+  }
+  out-&gt;t1 = T1; out-&gt;t2 = T2;
+}</div>
+          <div class="info-box tip mt-3"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>使用要点</strong>：① 定时器用<strong>中央对齐模式</strong>，ARR 设为 Ts，比较值 tcmpa/b/c 直接写 CCR1/2/3；② 母线电压 Vdc 需实时采样（弱磁区会变）；③ 全程无除法无开方，Cortex-M4 上 &lt;2μs，适合 16kHz+ PWM；④ 这是经典 TI/STM32 MC SDK 同款算法，可对照官方手册的矢量图验证扇区分配正确性。</div></div>
 
           <h3 class="text-lg font-semibold mb-3 mt-6">七、FOC电流环主循环</h3>
           <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-2">
@@ -3439,6 +3570,42 @@ HAL_TIM_PWM_Start(&amp;htim2, TIM_CHANNEL_1);
           </table></div>
           <div class="info-box info"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>换向频率别忘了除以极对数</strong>：极对数越多，同样机械转速下所需的电换向频率越高。例如 14 极对(7对)电机跑 1000RPM，换向频率 = 1000×7/60 ≈ 117Hz，MCU 中断和 PWM 必须跟得上。极对数也影响 <strong>FOC 的电角度 = 机械角度 × 极对数</strong>。</div></div>
         `},
+        { title: '代码示例：霍尔信号读取与换向（纯C框架）', content: `
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-3">
+            下面演示如何读取三相霍尔传感器并查表换向。这是 BLDC 最基础的驱动方式，理解它再看 <a href="#" onclick="navigateTo('bldc-commutation');return false;" style="color:var(--primary)">进阶篇的六步换向</a> 和 <a href="#" onclick="navigateTo('foc-impl');return false;" style="color:var(--primary)">FOC实现</a> 会更轻松：
+          </p>
+          <div class="code-block"><span class="code-comment">/* BLDC 霍尔换向 —— 读取3路霍尔信号，查表决定6路PWM输出
+ * 硬件相关函数用 extern 占位，移植时替换为具体GPIO/PWM操作 */</span>
+<span class="code-keyword">#define</span> POLE_PAIRS  <span class="code-number">7</span>      <span class="code-comment">// 极对数，按实际电机改</span>
+
+<span class="code-comment">// 读取3路霍尔（返回0~7的组合值）</span>
+<span class="code-keyword">extern uint8_t</span> <span class="code-func">Hall_Read</span>(<span class="code-keyword">void</span>);   <span class="code-comment">// 返回 (Ha&lt;&lt;2)|(Hb&lt;&lt;1)|Hc</span>
+<span class="code-comment">// 设置6路PWM（AH/AL/BH/BL/CH/CL，0关1开）</span>
+<span class="code-keyword">extern void</span>  <span class="code-func">PWM_Set</span>(<span class="code-keyword">uint8_t</span> ah,<span class="code-keyword">uint8_t</span> al,
+                     <span class="code-keyword">uint8_t</span> bh,<span class="code-keyword">uint8_t</span> bl,
+                     <span class="code-keyword">uint8_t</span> ch,<span class="code-keyword">uint8_t</span> cl);
+
+<span class="code-comment">/* 换向查表：霍尔值(1~6) → 6路PWM状态
+ * 每行：AH AL BH BL CH CL，H=上桥PWM L=下桥常通(电流回路) 0=关 */</span>
+<span class="code-keyword">static const uint8_t</span> COMM_TABLE[<span class="code-number">7</span>][<span class="code-number">6</span>] = {
+  {<span class="code-number">0</span>,<span class="code-number">0</span>,<span class="code-number">0</span>,<span class="code-number">0</span>,<span class="code-number">0</span>,<span class="code-number">0</span>},   <span class="code-comment">// 0: 无效</span>
+  {<span class="code-number">0</span>,<span class="code-number">1</span>,<span class="code-number">1</span>,<span class="code-number">0</span>,<span class="code-number">0</span>,<span class="code-number">0</span>},   <span class="code-comment">// 1: A进 B出</span>
+  {<span class="code-number">0</span>,<span class="code-number">0</span>,<span class="code-number">1</span>,<span class="code-number">0</span>,<span class="code-number">0</span>,<span class="code-number">1</span>},   <span class="code-comment">// 2: B进 C出</span>
+  {<span class="code-number">0</span>,<span class="code-number">1</span>,<span class="code-number">0</span>,<span class="code-number">0</span>,<span class="code-number">0</span>,<span class="code-number">1</span>},   <span class="code-comment">// 3: A进 C出</span>
+  {<span class="code-number">1</span>,<span class="code-number">0</span>,<span class="code-number">0</span>,<span class="code-number">0</span>,<span class="code-number">0</span>,<span class="code-number">1</span>},   <span class="code-comment">// 4: C进 A出</span>
+  {<span class="code-number">1</span>,<span class="code-number">0</span>,<span class="code-number">0</span>,<span class="code-number">1</span>,<span class="code-number">0</span>,<span class="code-number">0</span>},   <span class="code-comment">// 5: C进 B出</span>
+  {<span class="code-number">0</span>,<span class="code-number">0</span>,<span class="code-number">0</span>,<span class="code-number">1</span>,<span class="code-number">1</span>,<span class="code-number">0</span>},   <span class="code-comment">// 6: B进 A出</span>
+};
+
+<span class="code-comment">/* 主换向函数：霍尔变化时调用（可接GPIO外部中断）*/</span>
+<span class="code-keyword">void</span> <span class="code-func">BLDC_Communicate</span>(<span class="code-keyword">void</span>) {
+  <span class="code-keyword">uint8_t</span> h = <span class="code-func">Hall_Read</span>();         <span class="code-comment">// 读霍尔组合值</span>
+  <span class="code-keyword">if</span> (h &lt; <span class="code-number">1</span> || h &gt; <span class="code-number">6</span>) <span class="code-keyword">return</span>;     <span class="code-comment">// 无效值跳过</span>
+  <span class="code-keyword">const uint8_t</span> *c = COMM_TABLE[h];
+  <span class="code-func">PWM_Set</span>(c[<span class="code-number">0</span>],c[<span class="code-number">1</span>],c[<span class="code-number">2</span>],c[<span class="code-number">3</span>],c[<span class="code-number">4</span>],c[<span class="code-number">5</span>]);
+}</div>
+          <div class="info-box tip"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>关键点</strong>：① 换向表每行必须保证<strong>一相上桥PWM + 另一相下桥导通</strong>，第三相关断，形成电流回路；② 实际应用需加<strong>死区时间</strong>（上下桥切换瞬间都关，防直通，详见 <a href="#" onclick="navigateTo('advanced-protection');return false;" style="color:var(--primary)">驱动器保护</a>）；③ 调速靠改变 PWM 占空比，换向靠霍尔信号——这是 BLDC 最朴素的控制，FOC 是它的进阶版。</div></div>
+        `},
       ],
     },
     'stepper': {
@@ -3855,6 +4022,44 @@ GND  --> GND     (STM32与A4988必须共地!)</div>
           <div class="info-box warning"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg><div><strong>差分信号是关键</strong>：脉冲/方向信号线在干扰大的工业环境必须用<strong>双绞屏蔽差分</strong>(PUL+/PUL-一对)，单端信号超过1米就容易丢脉冲。MCU端用SN65HVD3082或MAX485转差分，或直接用带差分输出的驱动器型号。共地也常被新手忽略，导致电机乱跑。</div></div>
           <div class="info-box tip mt-3"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>首次上电流程</strong>：① 接线核对三遍(尤其电源相序)。② 驱动器设电子齿轮比(让脉冲数与编码器分辨率匹配)。③ <strong>先空载</strong>测试：低速发少量脉冲，看电机转向是否正确。④ 再带负载调位置环增益。跳步直接带载上电是烧驱动器的常见原因。</div></div>
         `},
+        { title: '代码示例：脉冲+方向控制伺服位置（STM32 HAL）', content: `
+          <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-3">
+            工业伺服最常用<strong>脉冲+方向(PULSE+DIR)</strong>模式控制位置。下面用 STM32 定时器输出指定数量脉冲，让伺服转到目标位置。这是实战示例，因此使用 STM32 HAL 库：
+          </p>
+          <div class="code-block"><span class="code-comment">/* STM32 伺服位置控制：用 TIM PWM 输出指定脉冲数
+ * 接线：PULSE→TIM_CH1  DIR→某GPIO  伺服驱动器设脉冲模式 */</span>
+<span class="code-keyword">#define</span> PULSES_PER_REV  <span class="code-number">10000</span>   <span class="code-comment">// 电子齿轮比后每转脉冲数(按驱动器设置)</span>
+
+<span class="code-comment">// 方向控制GPIO(实战示例用HAL)</span>
+<span class="code-keyword">void</span> <span class="code-func">Servo_SetDir</span>(<span class="code-keyword">int</span> forward) {
+  <span class="code-func">HAL_GPIO_WritePin</span>(DIR_GPIO_Port, DIR_Pin, forward ? <span class="code-func">GPIO_PIN_SET</span> : <span class="code-func">GPIO_PIN_RESET</span>);
+}
+
+<span class="code-comment">/* 让伺服转动指定圈数(可正负)。一圈=PULSES_PER_REV个脉冲
+ * 用PWM输出+计数中断，发完指定脉冲数后停 */</span>
+<span class="code-keyword">void</span> <span class="code-func">Servo_Move</span>(<span class="code-keyword">float</span> revolutions, <span class="code-keyword">uint32_t</span> freq_hz) {
+  <span class="code-keyword">int</span> total_pulses = (<span class="code-keyword">int</span>)(<span class="code-func">fabsf</span>(revolutions) * PULSES_PER_REV);
+  <span class="code-func">Servo_SetDir</span>(revolutions &gt;= <span class="code-number">0</span>);                 <span class="code-comment">// 设方向</span>
+  <span class="code-comment">// 配置PWM频率(决定速度)：ARR = 定时器时钟 / 频率</span>
+  <span class="code-keyword">uint32_t</span> arr = SystemCoreClock / freq_hz - <span class="code-number">1</span>;
+  htim1.Instance-&gt;ARR = arr;
+  htim1.Instance-&gt;CCR1 = arr / <span class="code-number">2</span>;              <span class="code-comment">// 50%占空比</span>
+  <span class="code-comment">// 用重复计数器/更新中断累计脉冲数，到 total_pulses 停PWM</span>
+  g_pulse_remain = total_pulses;
+  <span class="code-func">HAL_TIM_PWM_Start</span>(&amp;htim1, TIM_CHANNEL_<span class="code-number">1</span>);   <span class="code-comment">// 开始发脉冲</span>
+  <span class="code-func">HAL_TIM_Base_Start_IT</span>(&amp;htim1);          <span class="code-comment">// 开计数中断</span>
+}
+
+<span class="code-comment">// 定时器更新中断：每发一个脉冲进一次，扣减剩余数</span>
+<span class="code-keyword">void</span> <span class="code-func">HAL_TIM_PeriodElapsedCallback</span>(TIM_HandleTypeDef *htim) {
+  <span class="code-keyword">if</span> (htim == &amp;htim1) {
+    <span class="code-keyword">if</span> (--g_pulse_remain &lt;= <span class="code-number">0</span>) {
+      <span class="code-func">HAL_TIM_PWM_Stop</span>(&amp;htim1, TIM_CHANNEL_<span class="code-number">1</span>);   <span class="code-comment">// 发完停</span>
+    }
+  }
+}</div>
+          <div class="info-box info"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>电子齿轮比</strong>是伺服的核心概念：驱动器内部的<strong>编码器分辨率(如10000线)</strong>和外部<strong>脉冲数</strong>之间的换算比例。设 PULSES_PER_REV=10000 意味着你发10000个脉冲电机转一圈。不同驱动器设置方式不同(拨码/软件)，必须与代码一致。速度由<strong>PWM频率</strong>决定(频率越高转得越快)，位置由<strong>脉冲总数</strong>决定——这是脉冲模式伺服控制的两大要素。CANopen模式的伺服用 <a href="#" onclick="navigateTo('servo-control');return false;" style="color:var(--primary)">DS402对象字典</a> 写目标位置，更高级。</div></div>
+        `},
       ],
     },
     'hobby-servo': {
@@ -4137,6 +4342,7 @@ Servo_t joint_base, joint_arm, joint_hand;
     subtitle: '市场、选型、应用与职业全景',
     sections: [
       {
+        id: 'industry-market',
         title: '全球电机市场概况',
         icon: '🌍',
         desc: '了解电机行业的市场规模和主要玩家',
@@ -4180,6 +4386,7 @@ Servo_t joint_base, joint_arm, joint_hand;
         `
       },
       {
+        id: 'industry-selection',
         title: '电机选型实战指南',
         icon: '📋',
         desc: '从需求到选型的完整决策流程',
@@ -4220,6 +4427,7 @@ Servo_t joint_base, joint_arm, joint_hand;
         `
       },
       {
+        id: 'industry-compare',
         title: '各类型电机优缺点对比',
         icon: '⚖️',
         desc: '全面对比各类型电机的性能与适用场景',
@@ -4286,6 +4494,7 @@ Servo_t joint_base, joint_arm, joint_hand;
         `
       },
       {
+        id: 'industry-driver',
         title: '电机驱动芯片与开发平台',
         icon: '🔧',
         desc: '常用电机驱动IC和开源平台',
@@ -4323,6 +4532,7 @@ Servo_t joint_base, joint_arm, joint_hand;
         `
       },
       {
+        id: 'industry-career',
         title: '电机行业职业路径',
         icon: '👨‍💻',
         desc: '电机控制领域的职业方向和发展路径',
@@ -4368,6 +4578,7 @@ Servo_t joint_base, joint_arm, joint_hand;
         `
       },
       {
+        id: 'industry-brand',
         title: '国产 vs 进口品牌对比与选型避坑',
         icon: '🏭',
         desc: '主流电机/驱动器品牌对比、产业链格局、选型避坑经验',
@@ -4891,6 +5102,30 @@ const QuizData = {
     { question: 'S曲线的核心参数jerk（加加速度）设得非常大时会怎样？', options: ['运动更平滑', '退化成梯形曲线（加速度瞬间到位）', '电机会反转', '系统报错'], answer: 1, explanation: 'jerk=无穷大意味着加速度瞬间从0到a_max，这正是梯形曲线的定义。所以调S曲线本质就是调jerk：从大值开始减小，直到加速度波形从方波（突变）变成连续曲线。jerk越小越平滑但加速越慢。' },
     { question: '验证S曲线是否生效，最可靠的方法是？', options: ['听电机声音', '用手摸振动', '串口输出加速度波形，看是否从方波变成连续曲线', '看电机温度'], answer: 2, explanation: '加速度=速度的微分。梯形曲线的加速度是方波（突变）；S曲线的加速度是连续曲线。用串口输出加速度值到上位机画图，方波→连续曲线的转变一目了然。配合编码器读实际位置验证无丢步，是最科学的验证方法。' },
     { question: '以下哪个场景最适合用S曲线？', options: ['家用电风扇调速', '机械臂关节运动', 'LED呼吸灯', '电动牙刷'], answer: 1, explanation: '机械臂关节有连杆惯性+减速器，梯形曲线的加速度突变会激发振动、损坏减速器。S曲线让加速度平滑过渡，保护机械。CNC高速加工、SCARA机器人同理。简单场景（风扇/LED）不需要加减速。' },
+  ],
+  'industry-market': [
+    { question: '全球工业用电中，电机消耗的电能大约占多少？', options: ['约20%', '约40%', '约70%', '约90%'], answer: 2, explanation: '据统计，全球工业用电中约70%被各类电机消耗。电机是电能转换为机械能的核心装置，这也是为什么提升电机效率(如用BLDC替代有刷、用变频控制)对节能减排意义重大。' },
+    { question: '以下哪种电机目前市场份额最大（按功率总量）？', options: ['无刷直流电机(BLDC)', '交流异步电机', '步进电机', '伺服电机'], answer: 1, explanation: '交流异步(感应)电机因结构简单、坚固、便宜，统治了风机水泵、压缩机、传送带等大量中低性能场合，是装机功率最大的电机类型。BLDC和伺服虽增长快，但总功率占比仍小于异步电机。' },
+  ],
+  'industry-selection': [
+    { question: '需要精确定位但预算有限，应优先选哪种电机？', options: ['伺服电机', '步进电机', '有刷直流', '交流异步'], answer: 1, explanation: '步进电机开环即可精确到位、无需编码器，成本低，是预算有限精确定位的首选(3D打印、CNC)。预算充足且要求高动态性能时才上伺服。注意步进有丢步风险，要求绝对可靠时用闭环步进或伺服。' },
+    { question: '选型时"额定扭矩"和"峰值扭矩"的区别是什么？', options: ['没有区别', '额定是可长期连续输出的扭矩，峰值是短时(几秒)可承受的最大扭矩，通常为额定的2-3倍', '额定小于峰值的一半', '峰值是额定除以转速'], answer: 1, explanation: '额定扭矩是电机可长期连续输出而不过热的扭矩值，是选型的核心依据。峰值扭矩是短时(如加速、堵转瞬间)允许的最大值，通常为额定的2-3倍。按额定选型才能保证连续工作可靠。部分小厂虚标峰值当额定，务必索要扭矩-转速曲线。' },
+  ],
+  'industry-compare': [
+    { question: '同等功率下，哪种电机效率最高？', options: ['有刷直流电机', '无刷直流电机(BLDC)', '步进电机', '交流异步电机'], answer: 1, explanation: 'BLDC无电刷机械损耗，效率可达85-95%，是这几种里最高的。有刷60-75%(电刷摩擦+压降)，步进30-50%(静止也满电流发热)，异步75-90%。这也是无人机/电动工具普遍用BLDC的原因。' },
+    { question: '步进电机效率低(30-50%)的主要原因是？', options: ['齿轮箱损耗', '即使静止为保持力矩也持续通满电流发热', '转速太低', '电压不稳'], answer: 1, explanation: '步进电机为保持位置力矩，静止时绕组仍通额定电流，这部分电能几乎全转为热(无机械功输出)，导致整体效率低。这也是步进发热严重、连续工作需配散热或选空闲降流驱动的原因。' },
+  ],
+  'industry-driver': [
+    { question: '对比L298N，TB6612FNG的主要优势是？', options: ['电压更高', '体积小、效率高(低压差MOS替代BJT，发热少)', '电流更大', '支持FOC'], answer: 1, explanation: 'L298N用双极型功率管(BJT)，饱和压降大(约1.4V×2)，发热严重效率低。TB6612用MOSFET，导通电阻小、压降低，体积更小发热更少，是L298N的现代替代。但两者都只适合有刷直流，不能直接驱动BLDC/步进的三相。' },
+    { question: 'DIY FOC控制BLDC时，最常用的开源驱动方案是？', options: ['L298N', 'SimpleFOC Shield / ODrive / VESC', 'TMC2209', 'A4988'], answer: 1, explanation: 'SimpleFOC Shield(配Arduino/ESP32)、ODrive、VESC是开源FOC驱动的主流方案，支持三相BLDC/PMSM的磁场定向控制。TMC2209/A4988是步进驱动(单相H桥×2)，L298N是有刷驱动，都不能直接做FOC。' },
+  ],
+  'industry-career': [
+    { question: '嵌入式电机控制工程师(应届)的薪资范围通常在？', options: ['3-5K', '8-15K', '20-30K', '40K+'], answer: 1, explanation: '据行业数据，嵌入式电机控制方向应届约8-15K，3年经验15-25K，资深25-40K+。掌握FOC/驱动器设计能显著提升薪资，纯调PWM的初级岗位薪资偏低。地域(一线城市)、平台(大厂)影响也大。' },
+    { question: '想成为电机控制工程师，最核心的技能栈是？', options: ['只会PLC编程', 'C语言+STM32/电机原理+FOC/驱动器调试', '只会用Matlab仿真', '只会画PCB'], answer: 1, explanation: '核心是：扎实的C语言+ARM Cortex-M(STM32)开发能力、电机原理(电磁/数学模型)、控制算法(FOC/PID)、驱动器硬件调试能力。只会单一环节(纯软件/纯硬件/纯仿真)竞争力有限，能打通"算法-代码-硬件"全链路才是高薪关键。' },
+  ],
+  'industry-brand': [
+    { question: '国产伺服与日系高端(安川/松下)的主要差距体现在？', options: ['价格', '精度、稳定性、调试软件完善度', '电压等级', '颜色'], answer: 1, explanation: '国产伺服(汇川/禾川)价格优势明显，性价比高、售后快，已能满足大多数场景。但与安川/松下等日系高端相比，在极限精度、长期稳定性、调试软件易用性上仍有差距。高精度机床/半导体设备等仍倾向日系欧系。' },
+    { question: '选型避坑中"参数水分"最常见的表现是？', options: ['电压标高', '把峰值扭矩当额定扭矩标注', '型号写错', '包装夸大'], answer: 1, explanation: '部分国产小厂把峰值(短时)扭矩标成额定(连续)扭矩，或虚标转速。应对：要求卖家提供额定工况下的扭矩-转速曲线图，这是唯一客观依据。同理KV值、电流参数也可能有水分。' },
   ],
 };
 

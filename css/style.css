@@ -140,10 +140,12 @@
   white-space: pre;          /* 保留换行和缩进，否则代码会挤成一行 */
   tab-size: 4;               /* Tab 显示为 4 空格 */
 }
-.code-block .code-comment { color: #64748b; }
-.code-block .code-keyword { color: #c084fc; }
+.code-block .code-comment { color: #64748b; font-style: italic; }
+.code-block .code-keyword { color: #c084fc; font-weight: 500; }
 .code-block .code-string { color: #34d399; }
 .code-block .code-func { color: #60a5fa; }
+.code-block .code-number { color: #fbbf24; }
+.code-block .code-end { color: #f472b6; font-weight: 500; }
 
 /* ====== SVG 原理图 ====== */
 .svg-figure {

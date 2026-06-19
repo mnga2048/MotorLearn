@@ -559,6 +559,176 @@ const Charts = {
       render(0);
     },
 
+    // BLDC 六步换向动画：6步按钮，电机截面图，转子旋转+导通相高亮
+    bldc(el) {
+      el.innerHTML = `
+        <div style="display:flex;gap:8px;align-items:center;justify-content:center;margin-bottom:10px;flex-wrap:wrap">
+          <button id="bldc-prev" class="hb-btn" style="padding:5px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg-card);color:var(--text-secondary);cursor:pointer">◀ 上一步</button>
+          <span style="font-size:13px;color:var(--text-secondary)">第 <b id="bldc-step" style="color:#d4940a;font-family:Consolas">1</b> / 6 步</span>
+          <button id="bldc-next" class="hb-btn" style="padding:5px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg-card);color:var(--text-secondary);cursor:pointer">下一步 ▶</button>
+          <button id="bldc-auto" class="hb-btn" style="padding:5px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg-card);color:var(--text-secondary);cursor:pointer">▶ 自动</button>
+        </div>
+        <svg id="bldc-svg" viewBox="0 0 360 300" style="width:100%;max-width:360px;margin:0 auto;display:block">
+          <defs><style>.bldc-lbl{paint-order:stroke;stroke:var(--bg-card);stroke-width:3px;font-family:Consolas;font-weight:bold}</style></defs>
+          <!-- 三相绕组(定子)：A上 B右下 C左下，中心(180,150) -->
+          <g id="bldc-windings">
+            <!-- A相(上) -->
+            <ellipse id="bldc-wA" cx="180" cy="55" rx="36" ry="22" fill="#c0392b" opacity="0.25" stroke="#c0392b" stroke-width="2"/>
+            <text x="180" y="40" text-anchor="middle" class="bldc-lbl" fill="#c0392b" font-size="14">A</text>
+            <!-- B相(右下120°) -->
+            <ellipse id="bldc-wB" cx="262" cy="197" rx="36" ry="22" fill="#2e7d32" opacity="0.25" stroke="#2e7d32" stroke-width="2" transform="rotate(120 262 197)"/>
+            <text x="282" y="207" text-anchor="middle" class="bldc-lbl" fill="#2e7d32" font-size="14">B</text>
+            <!-- C相(左下240°) -->
+            <ellipse id="bldc-wC" cx="98" cy="197" rx="36" ry="22" fill="#1565c0" opacity="0.25" stroke="#1565c0" stroke-width="2" transform="rotate(-120 98 197)"/>
+            <text x="78" y="207" text-anchor="middle" class="bldc-lbl" fill="#1565c0" font-size="14">C</text>
+          </g>
+          <!-- 电流方向箭头组(导通时显示) -->
+          <g id="bldc-arrows"></g>
+          <!-- 转子(N/S永磁体)，可旋转 -->
+          <g id="bldc-rotor" transform="rotate(0 180 150)">
+            <rect x="170" y="95" width="20" height="110" rx="4" fill="url(#bldc-rotor-grad)"/>
+            <text x="180" y="108" text-anchor="middle" fill="#fff" font-size="13" font-weight="bold">N</text>
+            <text x="180" y="200" text-anchor="middle" fill="#fff" font-size="13" font-weight="bold">S</text>
+          </g>
+          <defs>
+            <linearGradient id="bldc-rotor-grad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#ef4444"/>
+              <stop offset="50%" stop-color="#9ca3af"/>
+              <stop offset="50%" stop-color="#6b7280"/>
+              <stop offset="100%" stop-color="#1e40af"/>
+            </linearGradient>
+          </defs>
+          <!-- 中心轴 -->
+          <circle cx="180" cy="150" r="6" fill="#374151"/>
+        </svg>
+        <div style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap;font-family:Consolas,monospace;font-size:13px;margin-top:8px">
+          <span id="bldc-status" style="color:var(--text-secondary)">点击"下一步"看六步换向过程</span>
+        </div>`;
+      const svg = el.querySelector('#bldc-svg');
+      const stepLbl = el.querySelector('#bldc-step');
+      const statusEl = el.querySelector('#bldc-status');
+      // 6步换向表：每步 {通电相: 进(+)/出(-), 转子目标角度}
+      // A上(0°) B右下(120°) C左下(240°)。转子N极指向"进相"与"出相"合成磁场方向
+      const steps = [
+        { in: 'A', out: 'B', rotor: 330, desc: 'A进 B出：磁场指向A→B，转子N极转到60°反向' },
+        { in: 'A', out: 'C', rotor: 30,  desc: 'A进 C出：合成磁场转60°，转子跟进' },
+        { in: 'B', out: 'C', rotor: 90,  desc: 'B进 C出' },
+        { in: 'B', out: 'A', rotor: 150, desc: 'B进 A出' },
+        { in: 'C', out: 'A', rotor: 210, desc: 'C进 A出' },
+        { in: 'C', out: 'B', rotor: 270, desc: 'C进 B出：完成一圈，回到起点' },
+      ];
+      let curStep = 0;
+      let autoT = null;
+
+      function colorOf(phase) { return phase === 'A' ? '#c0392b' : (phase === 'B' ? '#2e7d32' : '#1565c0'); }
+      function cxOf(phase) { return phase === 'A' ? 180 : (phase === 'B' ? 262 : 98); }
+      function cyOf(phase) { return phase === 'A' ? 55 : (phase === 'B' ? 197 : 197); }
+
+      function render(stepIdx) {
+        const s = steps[stepIdx];
+        // 高亮导通相
+        ['A', 'B', 'C'].forEach(p => {
+          const w = svg.querySelector('#bldc-w' + p);
+          const active = (p === s.in || p === s.out);
+          w.setAttribute('opacity', active ? '0.7' : '0.15');
+          w.setAttribute('stroke-width', active ? '4' : '2');
+        });
+        // 画电流箭头：进相→中心→出相
+        const ar = svg.querySelector('#bldc-arrows');
+        const inC = colorOf(s.in), outC = colorOf(s.out);
+        ar.innerHTML = `
+          <line x1="${cxOf(s.in)}" y1="${cyOf(s.in)}" x2="180" y2="150" stroke="${inC}" stroke-width="3" marker-end="url(#bldc-arr)" style="color:${inC}" opacity="0.9"/>
+          <line x1="180" y1="150" x2="${cxOf(s.out)}" y2="${cyOf(s.out)}" stroke="${outC}" stroke-width="3" marker-end="url(#bldc-arr)" style="color:${outC}" opacity="0.9"/>
+          <defs><marker id="bldc-arr" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="currentColor"/></marker></defs>`;
+        // 转子旋转
+        svg.querySelector('#bldc-rotor').setAttribute('transform', `rotate(${s.rotor} 180 150)`);
+        stepLbl.textContent = (stepIdx + 1);
+        statusEl.innerHTML = `<span style="color:${inC}">${s.in}进</span> <span style="color:${outC}">${s.out}出</span> — ${s.desc}`;
+      }
+      function next() { curStep = (curStep + 1) % 6; render(curStep); }
+      function prev() { curStep = (curStep + 5) % 6; render(curStep); }
+
+      el.querySelector('#bldc-next').onclick = () => { stopAuto(); next(); };
+      el.querySelector('#bldc-prev').onclick = () => { stopAuto(); prev(); };
+      const autoBtn = el.querySelector('#bldc-auto');
+      function stopAuto() { if (autoT) { clearInterval(autoT); autoT = null; autoBtn.textContent = '▶ 自动'; autoBtn.style.color = 'var(--text-secondary)'; } }
+      autoBtn.onclick = () => {
+        if (autoT) { stopAuto(); }
+        else { autoBtn.textContent = '⏸ 暂停'; autoBtn.style.color = 'var(--primary)'; next(); autoT = setInterval(next, 900); }
+      };
+      render(0);
+    },
+
+    // PID 阶跃响应交互图：滑块调Kp/Ki/Kd，实时画响应曲线
+    'pid-response'(el) {
+      el.innerHTML = `
+        <div style="display:flex;gap:14px;align-items:center;justify-content:center;margin-bottom:8px;flex-wrap:wrap;font-size:13px;color:var(--text-secondary)">
+          <label>Kp: <input type="range" id="pid-kp" min="0" max="8" step="0.1" value="2" style="width:110px;vertical-align:middle;accent-color:var(--primary)"><b id="pid-kp-v" style="color:#c084fc;font-family:Consolas;margin-left:4px">2.0</b></label>
+          <label>Ki: <input type="range" id="pid-ki" min="0" max="3" step="0.05" value="0.4" style="width:110px;vertical-align:middle;accent-color:var(--primary)"><b id="pid-ki-v" style="color:#34d399;font-family:Consolas;margin-left:4px">0.40</b></label>
+          <label>Kd: <input type="range" id="pid-kd" min="0" max="2" step="0.05" value="0.5" style="width:110px;vertical-align:middle;accent-color:var(--primary)"><b id="pid-kd-v" style="color:#60a5fa;font-family:Consolas;margin-left:4px">0.50</b></label>
+        </div>
+        <div id="pid-chart" style="width:100%;height:300px"></div>
+        <div style="text-align:center;color:var(--text-secondary);font-size:12px;margin-top:4px">拖动滑块看PID参数对阶跃响应的影响：Kp↑快但易超调 | Ki↑消稳态误差但增振荡 | Kd↑抑制超调但放大噪声</div>`;
+      const chartEl = el.querySelector('#pid-chart');
+      // 用ECharts画
+      const chart = typeof echarts !== 'undefined' ? echarts.init(chartEl) : null;
+      const sliders = ['kp', 'ki', 'kd'].map(k => el.querySelector('#pid-' + k));
+      const vals = ['kp', 'ki', 'kd'].map(k => el.querySelector('#pid-' + k + '-v'));
+
+      // 模拟一阶系统 + PID 的阶跃响应（数值积分，简化电机模型 G=1/(0.1s+1)）
+      function sim(kp, ki, kd) {
+        const N = 300, dt = 0.01, setpoint = 1.0;
+        const out = [], t = [];
+        let y = 0, integ = 0, prevErr = setpoint, prevY = 0;
+        for (let i = 0; i < N; i++) {
+          const err = setpoint - y;
+          integ += err * dt;
+          // 微分项用实际输出变化(避免设定值突变尖峰)，加低通滤波
+          const dydt = (y - prevY) / dt;
+          const deriv = -dydt; // d(err)/dt = -dy/dt
+          let u = kp * err + ki * integ + kd * deriv;
+          // 限幅(模拟PWM饱和)
+          if (u > 10) u = 10; if (u < -10) u = -10;
+          // 一阶系统 dy/dt = (u - y) / tau, tau=0.3
+          const tau = 0.3;
+          y += (u - y) / tau * dt;
+          t.push(i * dt);
+          out.push(y);
+          prevY = y;
+          prevErr = err;
+        }
+        return { t, out };
+      }
+
+      function render() {
+        const kp = parseFloat(sliders[0].value), ki = parseFloat(sliders[1].value), kd = parseFloat(sliders[2].value);
+        vals[0].textContent = kp.toFixed(1); vals[1].textContent = ki.toFixed(2); vals[2].textContent = kd.toFixed(2);
+        const { t, out } = sim(kp, ki, kd);
+        // 算性能指标
+        const steady = out[out.length - 1];
+        let overshoot = 0, maxV = 0;
+        out.forEach(v => { if (v > maxV) maxV = v; });
+        overshoot = maxV > 1 ? ((maxV - 1) * 100).toFixed(0) : 0;
+        if (!chart) return;
+        chart.setOption({
+          animation: false,
+          grid: { left: 45, right: 20, top: 20, bottom: 30 },
+          xAxis: { type: 'category', data: t.map(x => x.toFixed(2)), name: '时间(s)', axisLabel: { fontSize: 10 } },
+          yAxis: { type: 'value', min: 0, max: Math.max(1.8, maxV + 0.1), name: '输出', axisLabel: { fontSize: 10 } },
+          tooltip: { trigger: 'axis' },
+          series: [
+            { name: '设定值', type: 'line', data: t.map(() => 1), lineStyle: { color: '#94a3b8', type: 'dashed', width: 1.5 }, symbol: 'none' },
+            { name: '响应', type: 'line', data: out, lineStyle: { color: '#d4940a', width: 2.5 }, symbol: 'none', areaStyle: { color: 'rgba(212,148,10,0.08)' },
+              markPoint: { data: [{ name: '峰值', coord: [out.indexOf(maxV), maxV], label: { formatter: '超调' + overshoot + '%', fontSize: 10 } }] } }
+          ]
+        });
+      }
+      sliders.forEach(s => s.addEventListener('input', render));
+      // 窗口resize自适应
+      window.addEventListener('resize', () => chart && chart.resize());
+      render();
+    },
+
     // 机械臂交互图：拖拽末端，实时显示θ1/θ2/x/y，标注角度位置
     arm(el) {
       const L1 = 130, L2 = 100;

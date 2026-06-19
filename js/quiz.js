@@ -59,19 +59,51 @@ const Quiz = {
   },
 
   answer(sectionId, qi, selected, correct) {
-    const results = this.getResults();
-    if (results[sectionId]?.[qi] !== undefined) return; // 已答过
-    const isCorrect = selected === correct;
-    this.saveResult(sectionId, qi, isCorrect);
-    // 存储选择用于显示
     const data = this.getResults();
+    if (data[sectionId]?.[qi]?.selected !== undefined) return; // 已答过
+    const isCorrect = selected === correct;
     if (!data[sectionId]) data[sectionId] = {};
     data[sectionId][qi] = { selected, correct: isCorrect };
     localStorage.setItem(this.STORAGE_KEY, JSON.stringify(data));
-    // 重新渲染详情页
-    // 注意：电机页的 sectionId 形如 'motor-stepper'，但路由 key 是 'stepper'
-    // 需剥离 'motor-' 前缀，否则 navigateTo 找不到页面会回退到首页
+    // 行业页(industry-*)是手风琴内测验，没有独立路由——直接就地更新DOM，
+    // 不触发整页重渲染(否则手风琴会折叠、丢失展开状态)
+    if (sectionId.startsWith('industry-')) {
+      this.applyResultInline(sectionId, qi, selected, isCorrect);
+      this.updateScoreInline(sectionId);
+      return;
+    }
+    // 其他详情页：重新渲染整页（电机页 sectionId 形如 'motor-stepper'，需剥离前缀）
     const navTarget = sectionId.startsWith('motor-') ? sectionId.slice(6) : sectionId;
     navigateTo(navTarget);
+  },
+
+  // 行业页测验：就地更新单个题目的选项样式和解析显示
+  applyResultInline(sectionId, qi, selected, isCorrect) {
+    const correctIdx = (QuizData[sectionId]?.[qi]?.answer);
+    const card = document.querySelector(`[onclick*="Quiz.answer('${sectionId}',${qi}"]`)?.closest('.quiz-card');
+    if (!card) return;
+    card.querySelectorAll('.quiz-option').forEach((opt, oi) => {
+      opt.classList.add('disabled');
+      if (oi === correctIdx) opt.classList.add('correct');
+      else if (oi === selected) opt.classList.add('wrong');
+    });
+    const exp = card.querySelector('.quiz-explanation');
+    if (exp) exp.classList.add('visible');
+  },
+
+  // 行业页测验：更新该组测验的得分显示
+  updateScoreInline(sectionId) {
+    const data = this.getResults()[sectionId] || {};
+    const answered = Object.keys(data).length;
+    const correctCount = Object.values(data).filter(v => v.correct).length;
+    // 找到该测验的标题区(同一 sectionId 的 quiz-card 的前一个标题)
+    const firstCard = document.querySelector(`[onclick*="Quiz.answer('${sectionId}',0,"]`);
+    const scoreEl = firstCard?.closest('.mt-8')?.querySelector('.quiz-score');
+    if (scoreEl) {
+      scoreEl.textContent = `${correctCount}/${answered}`;
+      scoreEl.classList.toggle('pass', correctCount / answered >= 0.6);
+      scoreEl.classList.toggle('fail', correctCount / answered < 0.6);
+      scoreEl.style.display = '';
+    }
   },
 };

@@ -11,6 +11,7 @@ const Validator = (() => {
     { id: 'sum', label: '累加和', info: '所有字节求和后 <b>& 0xFF</b>，常用于简单串口协议', bytes: 1 },
     { id: 'negate', label: '取反校验', info: '帧格式：<b>FF FF</b> 帧头 + 数据 + 校验字节。校验 = <b>~(数据求和) & 0xFF</b>', bytes: 1 },
     { id: 'modbus-parse', label: 'Modbus RTU 解析', info: '结构化解析一帧完整报文：<b>从站地址 + 功能码 + 数据 + CRC</b>，自动识别功能码含义、拆解字段、复核CRC、识别异常响应', special: true, bytes: 0 },
+    { id: 'can-parse', label: 'CAN 帧解析', info: '解析 CAN 2.0 标准/扩展帧：<b>ID + DLC + 数据场</b>，识别 IDE/RTR 标志位，按位拆解 29 位扩展 ID', special: true, bytes: 0 },
   ];
 
   // Modbus 功能码含义表
@@ -173,6 +174,7 @@ const Validator = (() => {
     const algo = algorithms.find(a => a.id === algoId);
     if (!algo) return '';
     if (algo.special && algoId === 'modbus-parse') return renderModbusPanel();
+    if (algo.special && algoId === 'can-parse') return renderCanPanel();
     return `
       <div class="formula-block text-sm mb-4">
         <div style="text-align:left">${algo.info}</div>
@@ -238,6 +240,11 @@ const Validator = (() => {
     // Modbus RTU 帧解析（特殊模式）
     if (algoId === 'modbus-parse') {
       parseModbusFrame(data);
+      return;
+    }
+    // CAN 帧解析（特殊模式）
+    if (algoId === 'can-parse') {
+      parseCanFrame(data);
       return;
     }
 
@@ -498,5 +505,111 @@ const Validator = (() => {
     `;
   }
 
-  return { render, calculate, clear, copy, switchAlgo, loadHistory, loadModbusExample };
+  // ========== CAN 帧解析面板 ==========
+  function renderCanPanel() {
+    return `
+      <div class="formula-block text-sm mb-4">
+        <div style="text-align:left">输入一帧 <strong>CAN 报文</strong>，自动拆解帧类型与字段。<br>
+        <strong>标准帧</strong>：2字节ID(11位有效) + 1字节DLC + 0~8字节数据<br>
+        <strong>扩展帧</strong>：4字节ID(29位有效,IDE=1) + 1字节DLC + 0~8字节数据<br>
+        RTR位(远程帧)在DLC字节的最高位(bit4)，IDE位在ID区。</div>
+      </div>
+      <label style="display:block;font-size:0.8125rem;font-weight:500;color:var(--text-secondary);margin-bottom:6px">
+        输入CAN帧（十六进制，标准帧示例：ID DLC 数据）
+      </label>
+      <textarea id="val-input" class="val-textarea" placeholder="标准帧示例：01 8F 04 01 02 03 04&#10;(ID=0x018F DLC=4 数据=01020304)&#10;扩展帧示例：18 FE F0 00 08 11 22" rows="3">01 8F 04 01 02 03 04</textarea>
+      <div class="val-btn-row">
+        <button class="val-btn-primary" onclick="Validator.calculate()">解析帧</button>
+        <button class="val-btn-secondary" onclick="Validator.loadCanExample('std')">标准帧</button>
+        <button class="val-btn-secondary" onclick="Validator.loadCanExample('ext')">扩展帧</button>
+        <button class="val-btn-secondary" onclick="Validator.loadCanExample('rtr')">远程帧</button>
+        <button class="val-btn-secondary" onclick="Validator.clear()">清空</button>
+      </div>
+      <div id="val-result" class="val-result-area"></div>
+    `;
+  }
+
+  const canExamples = {
+    std: '01 8F 04 01 02 03 04',           // 标准帧 ID=0x018F DLC=4 数据4字节
+    ext: '00 18 FE F0 08 11 22 33 44 55 66 77 88',  // 扩展帧 29位ID=0x18FEF0 DLC=8 + 8字节
+    rtr: '02 01 80',                       // 远程帧 RTR=1 ID=0x0201 DLC=8 无数据
+  };
+
+  function loadCanExample(type) {
+    const input = document.getElementById('val-input');
+    if (input && canExamples[type]) input.value = canExamples[type];
+    calculate();
+  }
+
+  function parseCanFrame(data) {
+    const result = document.getElementById('val-result');
+    if (!result) return;
+    result.style.display = 'block';
+
+    if (data.length < 3) {
+      result.innerHTML = `<div style="color:var(--danger);padding:10px;border:1px solid var(--danger);border-radius:6px;font-size:13px">帧太短：CAN帧至少需 ID(2字节) + DLC(1字节)，当前 ${data.length} 字节</div>`;
+      return;
+    }
+
+    const rows = [];
+    let idBytes, id, dlc, dataField, isExtended, isRTR;
+
+    // 判断标准帧(2字节ID)还是扩展帧(4字节ID)：看第3字节高半字节
+    // 约定：标准帧ID占2字节，扩展帧ID占4字节。用数据长度启发式判断：
+    // 标准：[ID_H ID_L] [DLC] [data...]   扩展：[ID0 ID1 ID2 ID3] [DLC] [data...]
+    // 启发：若 data.length-3<=8 视为标准帧，data.length-5<=8 视为扩展帧
+    const tryStd = data.length - 3;
+    const tryExt = data.length - 5;
+    if (tryStd >= 0 && tryStd <= 8) {
+      // 标准帧
+      isExtended = false;
+      id = (data[0] << 8) | data[1];   // 16位，有效11位
+      const dlcByte = data[2];
+      isRTR = (dlcByte & 0x10) !== 0;   // bit4 = RTR
+      dlc = dlcByte & 0x0F;
+      dataField = data.slice(3, 3 + dlc);
+      idBytes = 2;
+    } else if (tryExt >= 0 && tryExt <= 8) {
+      // 扩展帧
+      isExtended = true;
+      id = (data[0] << 24) | (data[1] << 16) | (data[2] << 8) | data[3];  // 32位，有效29位
+      const dlcByte = data[4];
+      isRTR = (dlcByte & 0x10) !== 0;
+      dlc = dlcByte & 0x0F;
+      dataField = data.slice(5, 5 + dlc);
+      idBytes = 4;
+    } else {
+      result.innerHTML = `<div style="color:var(--danger);padding:10px;border:1px solid var(--danger);border-radius:6px;font-size:13px">无法识别帧格式：数据长度 ${data.length} 不符合标准帧(3~11字节)或扩展帧(5~13字节)</div>`;
+      return;
+    }
+
+    rows.push({ k: '帧类型', v: isExtended ? '扩展帧 (Extended, IDE=1)' : '标准帧 (Standard, IDE=0)', note: isExtended ? '29位ID' : '11位ID' });
+    rows.push({ k: '帧种类', v: isRTR ? '远程帧 (Remote, RTR=1)' : '数据帧 (Data, RTR=0)', note: isRTR ? '请求数据，无数据场' : '携带数据' });
+    rows.push({ k: 'CAN ID', v: `0x${id.toString(16).toUpperCase()} (${id})`, note: isExtended ? `29位有效，${id <= 0x1FFFFFFF ? '✓合法' : '✗超范围'}` : `11位有效，${id <= 0x7FF ? '✓合法' : '✗超范围'}` });
+    rows.push({ k: 'DLC(数据长度)', v: `${dlc}`, note: dlc > 8 ? '✗CAN最多8字节' : (dlc === 8 && isExtended ? 'CAN-FD可达64字节' : '') });
+
+    if (isRTR) {
+      rows.push({ k: '数据场', v: '(无 - 远程帧)', note: '远程帧只声明请求长度(DLC)，不含数据' });
+    } else if (dataField.length > 0) {
+      rows.push({ k: '数据场', v: dataStr(dataField), note: `${dataField.length} 字节: ${dataField.map(b => '0x' + hex2(b)).join(' ')}` });
+    } else {
+      rows.push({ k: '数据场', v: '(空)', note: 'DLC=0 无数据' });
+    }
+    rows.push({ k: '原始帧', v: dataStr(data), note: `共 ${data.length} 字节` });
+
+    result.innerHTML = `
+      <div style="padding:4px 0">
+        ${rows.map((r, i) => `
+          <div class="val-result-row" style="${i === rows.length - 1 ? 'border-bottom:none' : ''}">
+            <span class="val-result-title">${r.k}</span>
+            <span class="val-result-value" style="font-family:Consolas,monospace">${r.v}</span>
+            <span style="font-size:12px;color:var(--text-secondary);flex:1">${r.note || ''}</span>
+          </div>
+        `).join('')}
+      </div>
+      <div class="info-box tip mt-3"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>CAN帧无软件CRC</strong>：CAN控制器硬件自动处理仲裁、CRC15、ACK和错误帧，软件看不到这些位。这里的解析只拆解应用层可见的 ID/DLC/Data。RTR远程帧用于主动请求数据(如主节点请求从节点发送)；CANopen/UDS 协议基于这些字段进一步定义语义。</div></div>
+    `;
+  }
+
+  return { render, calculate, clear, copy, switchAlgo, loadHistory, loadModbusExample, loadCanExample };
 })();

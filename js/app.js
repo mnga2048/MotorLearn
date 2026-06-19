@@ -465,7 +465,7 @@
             <span>${s.icon} ${s.title}</span>
             <svg class="w-5 h-5" style="color:var(--text-secondary)" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
           </button>
-          <div class="accordion-body"><div class="accordion-body-inner">${s.content}</div></div>
+          <div class="accordion-body"><div class="accordion-body-inner">${s.content}${s.id && typeof Quiz !== 'undefined' && QuizData[s.id] ? Quiz.render(s.id, QuizData[s.id]) : ''}</div></div>
         </div>`).join('')}
       </div>
     </div>`;
