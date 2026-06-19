@@ -70,20 +70,20 @@ const MotorData = {
 
   // ========== 首页数据 ==========
   home: {
-    title: '电机知识学习平台（制作完善中）',
-    subtitle: '面向小白的系统化电机控制学习指南，从入门到进阶，目标是一站式掌握电机知识 owo',
-    intro: '从单片机+C的视角出发，系统化讲解电机控制——电磁原理→PWM调速→编码器反馈→PID闭环→FOC→运动学→ROS桥接。每篇都有可运行的C代码示例，配合交互图表和在线仿真沙盒，帮你从"只会调PWM占空比"成长为"能设计完整电机控制系统"。',
+    title: '电机知识学习平台',
+    subtitle: '面向小白的系统化电机控制学习指南，从入门到进阶，一站式掌握电机知识 owo',
+    intro: '从单片机+C的视角出发，系统化讲解电机控制——电磁原理→PWM调速→编码器反馈→PID闭环→FOC→运动学→ROS桥接。每篇都有可运行的C代码示例，配合交互图表、在线计算器和仿真沙盒，帮你从"只会调PWM占空比"成长为"能设计完整电机控制系统"。',
     features: [
-      { icon: '📖', label: '系统化知识', desc: '入门→进阶→机器人应用，17个知识点按学习路径递进' },
-      { icon: '💻', label: '可运行代码', desc: '30+段纯C算法+实战示例，不绑定平台，可直接移植' },
-      { icon: '🎮', label: '交互图表', desc: '6个可交互原理图/波形图（拖拽机械臂、点击H桥切换状态）' },
-      { icon: '🧪', label: '在线沙盒', desc: 'Python仿真沙盒，浏览器里改参数看阶跃响应，零成本验证算法' },
+      { icon: '📖', label: '系统化知识', desc: '入门→进阶→机器人应用，23个知识点按学习路径递进' },
+      { icon: '💻', label: '可运行代码', desc: '60+段纯C算法+实战示例，不绑定平台，可直接移植' },
+      { icon: '🎮', label: '交互图表', desc: '8个可交互原理图/波形图（拖拽机械臂、点击H桥、拖动FOC旋转向量）' },
+      { icon: '🧰', label: '计算器与工具', desc: '14个工程计算器+Modbus帧解析+校验工具，学完即练' },
     ],
     stats: [
-      { label: '知识章节', value: '17', color: 'blue' },
+      { label: '知识章节', value: '23', color: 'blue' },
       { label: '电机类型', value: '5', color: 'green' },
-      { label: '代码示例', value: '30+', color: 'purple' },
-      { label: '交互图表', value: '6', color: 'orange' },
+      { label: '代码示例', value: '60+', color: 'purple' },
+      { label: '计算器', value: '14', color: 'orange' },
     ],
     quickStart: [
       { id: 'beginner-em', title: '电磁学基础', desc: '从安培力、法拉第定律开始，建立电磁学知识框架', icon: '⚡', color: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600', level: '入门' },

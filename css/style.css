@@ -422,6 +422,20 @@
   .psim-grid { grid-template-columns: 1fr !important; }
   /* 校验器结果标签：手机端缩小 */
   .val-result-title { width: 90px; font-size: 0.7rem; }
+
+  /* 校验器 Tab：手机端允许换行+缩小，避免6个Tab挤溢出 */
+  .val-tabs { flex-wrap: wrap; gap: 0.375rem; }
+  .val-tab-btn { padding: 0.375rem 0.625rem; font-size: 0.75rem; }
+
+  /* H桥按钮：手机端允许换行+缩小 */
+  .hb-btn { flex-shrink: 0; padding: 0.375rem 0.625rem !important; font-size: 0.75rem !important; }
+
+  /* FOC 交互图滑块：手机端缩短 */
+  #foc-svg { max-width: 100%; }
+  #foc-slider { width: 140px !important; }
+
+  /* Python 沙盒 textarea：手机端高度缩小 */
+  .psim-grid textarea { height: 220px !important; }
 }
 
 /* ====== 响应式：小手机 (≤480px) ====== */
@@ -437,4 +451,10 @@
 
   /* 顶栏：极小屏隐藏进度条整体 */
   #topbar [style*="global-progress"] { display: none !important; }
+
+  /* H桥/FOC交互：极小屏字号进一步缩小 */
+  .hb-btn { padding: 0.25rem 0.5rem !important; font-size: 0.7rem !important; }
+  .val-tab-btn { padding: 0.25rem 0.5rem; font-size: 0.7rem; }
+  #foc-svg { min-width: 300px; }
+  #foc-slider { width: 110px !important; }
 }
