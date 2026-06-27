@@ -4,7 +4,9 @@
   let currentPage = 'home';
 
   // ========== 侧边栏渲染 ==========
-  const collapsedGroups = JSON.parse(sessionStorage.getItem('ml_collapsed') || '{}');
+  // 容错解析：sessionStorage 若被写入损坏 JSON，回退到空对象避免整站白屏
+  let collapsedGroups = {};
+  try { collapsedGroups = JSON.parse(sessionStorage.getItem('ml_collapsed') || '{}'); } catch { collapsedGroups = {}; }
 
   function renderSidebar() {
     const nav = document.getElementById('sidebar-nav');
@@ -66,9 +68,30 @@
   }
 
   // ========== 页面渲染 ==========
+  // 切换页面前清理上一页的资源：销毁ECharts实例，避免内存泄漏与resize监听器叠加
+  function cleanupPageResources() {
+    const container = document.getElementById('page-container');
+    if (!container) return;
+    // 销毁容器内所有 ECharts 实例（pwm/hall/encoder/trajectory/pid-response/knowledge-graph/progress）
+    if (typeof echarts !== 'undefined') {
+      // echarts 给每个实例DOM打上 _echarts_instance_ 属性，遍历所有子元素销毁
+      container.querySelectorAll('*').forEach(el => {
+        if (el.getAttribute && el.getAttribute('_echarts_instance_')) {
+          const inst = echarts.getInstanceByDom(el);
+          if (inst) inst.dispose();
+        }
+      });
+    }
+    // 通知 Charts 模块停止所有自动动画（RAF/setInterval）
+    if (typeof Charts !== 'undefined' && Charts.stopAll) Charts.stopAll();
+  }
+
   function renderPage(pageId) {
     const container = document.getElementById('page-container');
     if (!container) return;
+
+    // 切页前清理上一页资源（ECharts dispose + 停止动画定时器）
+    cleanupPageResources();
 
     // 保存滚动位置
     if (currentPage) {

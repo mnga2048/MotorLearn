@@ -84,6 +84,8 @@ const Search = {
     document.getElementById('search-results')?.classList.add('hidden');
     const input = document.getElementById('search-input');
     if (input) input.value = '';
+    // 清除高亮关键词，避免后续访问的每个页面都被持续高亮（搜索行为应仅影响本次跳转）
+    window._lastSearchKeyword = '';
     if (!target) return;
     navigateTo(target);
     if (scrollTo) {

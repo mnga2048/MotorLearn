@@ -74,13 +74,13 @@ const MotorData = {
     subtitle: '目标是制作面向新手的系统化电机控制学习指南，从入门到进阶，一站式掌握电机知识 owo',
     intro: '从单片机+C的视角出发，系统化讲解电机控制——电磁原理→PWM调速→编码器反馈→PID闭环→FOC→运动学→ROS桥接。每篇都有可运行的C代码示例，配合交互图表、在线计算器和仿真沙盒，帮你从"只会调PWM占空比"成长为"能设计完整电机控制系统"。',
     features: [
-      { icon: '📖', label: '系统化知识', desc: '入门→进阶→机器人应用，23个知识点按学习路径递进' },
+      { icon: '📖', label: '系统化知识', desc: '入门→进阶→机器人应用，28个知识点按学习路径递进' },
       { icon: '💻', label: '可运行代码', desc: '60+段纯C算法+实战示例，不绑定平台，可直接移植' },
       { icon: '🎮', label: '交互图表', desc: '10个可交互原理图/波形图（拖拽机械臂、点击H桥、拖动FOC向量、BLDC换向动画、PID响应曲线）' },
       { icon: '🧰', label: '计算器与工具', desc: '14个工程计算器+Modbus帧解析+校验工具，学完即练' },
     ],
     stats: [
-      { label: '知识章节', value: '23', color: 'blue' },
+      { label: '知识章节', value: '28', color: 'blue' },
       { label: '电机类型', value: '5', color: 'green' },
       { label: '代码示例', value: '60+', color: 'purple' },
       { label: '计算器', value: '14', color: 'orange' },
@@ -319,11 +319,11 @@ const MotorData = {
             <thead><tr><th>参数</th><th>测量工具</th><th>方法</th></tr></thead>
             <tbody>
               <tr><td class="font-medium">相电阻 R</td><td>万用表(电阻档)</td><td>测电机两相端电阻。多次旋转转子取平均（消除换向器接触差异）</td></tr>
-              <tr><td class="font-medium">空载转速</td><td>示波器+霍尔，或转速计</td><td>加额定电压空载，测霍尔信号频率 → n = 60×f/(极对数×换向模式)</td></tr>
+              <tr><td class="font-medium">空载转速</td><td>示波器+霍尔，或转速计</td><td>加额定电压空载，测霍尔信号频率 → n = 60×f/极对数</td></tr>
               <tr><td class="font-medium">KV值(无刷)</td><td>电源+转速计</td><td>空载下测转速 n，KV = n / V。例：10V下12000RPM → KV=1200</td></tr>
               <tr><td class="font-medium">堵转电流</td><td>电源(限流)+电流表</td><td>卡死转子，缓慢升压到额定电流，读数。注意每次&lt;3秒防烧毁</td></tr>
               <tr><td class="font-medium">反电动势常数 Ke</td><td>示波器+示波器探头</td><td>用手匀速转动电机，测两相开路电压峰值，除以转速(RPM)</td></tr>
-              <tr><td class="font-medium">转矩常数 Kt</td><td>计算</td><td>Kt ≈ 9.55 × Ke（国际单位下两者数值相等，单位不同）</td></tr>
+              <tr><td class="font-medium">转矩常数 Kt</td><td>计算</td><td>SI单位(Ke用V·s/rad)下 Kt = Ke，数值相等单位不同；Ke用V/(krpm)时 Kt = Ke/104.7</td></tr>
             </tbody>
           </table></div>
           <div class="info-box warning mt-3">
@@ -1501,11 +1501,11 @@ TIM_HandleTypeDef htim1;
   <span class="code-keyword">float</span> T1 = <span class="code-number">0</span>, T2 = <span class="code-number">0</span>;
   <span class="code-keyword">switch</span> (sector) {
     <span class="code-keyword">case</span> <span class="code-number">1</span>: T1 = -Z; T2 =  X; <span class="code-keyword">break</span>;   <span class="code-comment">// V4,V6</span>
-    <span class="code-keyword">case</span> <span class="code-number">2</span>: T1 =  Z; T2 = -Y; <span class="code-number">0</span>;        <span class="code-comment">// V6,V2 (占位防误)</span>
-    <span class="code-keyword">case</span> <span class="code-number">3</span>: T1 =  X; T2 =  Y; <span class="code-number">0</span>;        <span class="code-comment">// V2,V3</span>
-    <span class="code-keyword">case</span> <span class="code-number">4</span>: T1 =  Z; T2 = -X; <span class="code-number">0</span>;        <span class="code-comment">// V3,V1</span>
-    <span class="code-keyword">case</span> <span class="code-number">5</span>: T1 = -X; T2 = -Z; <span class="code-number">0</span>;        <span class="code-comment">// V1,V5</span>
-    <span class="code-keyword">case</span> <span class="code-number">6</span>: T1 = -Y; T2 = -Z; <span class="code-number">0</span>;        <span class="code-comment">// V5,V4</span>
+    <span class="code-keyword">case</span> <span class="code-number">2</span>: T1 =  Z; T2 = -Y; <span class="code-keyword">break</span>;   <span class="code-comment">// V6,V2</span>
+    <span class="code-keyword">case</span> <span class="code-number">3</span>: T1 =  X; T2 =  Y; <span class="code-keyword">break</span>;   <span class="code-comment">// V2,V3</span>
+    <span class="code-keyword">case</span> <span class="code-number">4</span>: T1 =  Z; T2 = -X; <span class="code-keyword">break</span>;   <span class="code-comment">// V3,V1</span>
+    <span class="code-keyword">case</span> <span class="code-number">5</span>: T1 = -X; T2 = -Z; <span class="code-keyword">break</span>;   <span class="code-comment">// V1,V5</span>
+    <span class="code-keyword">case</span> <span class="code-number">6</span>: T1 = -Y; T2 = -Z; <span class="code-keyword">break</span>;   <span class="code-comment">// V5,V4</span>
   }
 
   <span class="code-comment">// 第四步：过调制处理 + 零矢量分配</span>
@@ -1519,11 +1519,11 @@ TIM_HandleTypeDef htim1;
   <span class="code-comment">// 第五步：按扇区分配三相比较值（七段式对称中心对齐）</span>
   <span class="code-keyword">switch</span> (sector) {
     <span class="code-keyword">case</span> <span class="code-number">1</span>: out-&gt;tcmpa=Ta; out-&gt;tcmpb=Tb; out-&gt;tcmpc=Tc; <span class="code-keyword">break</span>;
-    <span class="code-keyword">case</span> <span class="code-number">2</span>: out-&gt;tcmpa=Tb; out-&gt;tcmpb=Ta; out-&gt;tcmpc=Tc; <span class="code-number">0</span>; <span class="code-keyword">break</span>;
-    <span class="code-keyword">case</span> <span class="code-number">3</span>: out-&gt;tcmpa=Tc; out-&gt;tcmpb=Ta; out-&gt;tcmpc=Tb; <span class="code-number">0</span>; <span class="code-keyword">break</span>;
+    <span class="code-keyword">case</span> <span class="code-number">2</span>: out-&gt;tcmpa=Tb; out-&gt;tcmpb=Ta; out-&gt;tcmpc=Tc; <span class="code-keyword">break</span>;
+    <span class="code-keyword">case</span> <span class="code-number">3</span>: out-&gt;tcmpa=Tc; out-&gt;tcmpb=Ta; out-&gt;tcmpc=Tb; <span class="code-keyword">break</span>;
     <span class="code-keyword">case</span> <span class="code-number">4</span>: out-&gt;tcmpa=Tc; out-&gt;tcmpb=Tb; out-&gt;tcmpc=Ta; <span class="code-keyword">break</span>;
     <span class="code-keyword">case</span> <span class="code-number">5</span>: out-&gt;tcmpa=Tb; out-&gt;tcmpb=Tc; out-&gt;tcmpc=Ta; <span class="code-keyword">break</span>;
-    <span class="code-keyword">case</span> <span class="code-number">6</span>: out-&gt;tcmpa=Ta; out-&gt;tcmpb=Tc; out-&gt;tcmpc=Tb; <span class="code-number">0</span>; <span class="code-keyword">break</span>;
+    <span class="code-keyword">case</span> <span class="code-number">6</span>: out-&gt;tcmpa=Ta; out-&gt;tcmpb=Tc; out-&gt;tcmpc=Tb; <span class="code-keyword">break</span>;
   }
   out-&gt;t1 = T1; out-&gt;t2 = T2;
 }</div>
@@ -1952,6 +1952,8 @@ TIM_HandleTypeDef htim1;
 
           <div class="code-block"><span class="code-comment">/* 脉冲/方向控制伺服走位置（STM32定时器PWM脉冲模式）
  * 用定时器输出固定数量的脉冲，硬件自动完成 */</span>
+<span class="code-keyword">volatile int32_t</span> g_pulse_remain = <span class="code-number">0</span>;  <span class="code-comment">// 剩余脉冲数(中断里改，必须volatile)</span>
+
 <span class="code-keyword">void</span> <span class="code-func">Servo_MovePulse</span>(<span class="code-keyword">int32_t</span> pulses, <span class="code-keyword">uint32_t</span> freq_hz) {
   <span class="code-comment">// 1. 设置方向</span>
   <span class="code-keyword">if</span> (pulses &gt;= <span class="code-number">0</span>) HAL_GPIO_WritePin(DIR_PORT, DIR_PIN, GPIO_PIN_SET);
@@ -1963,14 +1965,14 @@ TIM_HandleTypeDef htim1;
   htim2.Instance->ARR = SystemCoreClock / freq_hz - <span class="code-number">1</span>;  <span class="code-comment">// 自动重装载值</span>
   htim2.Instance->CCR1 = (htim2.Instance->ARR + <span class="code-number">1</span>) / <span class="code-number">2</span>;  <span class="code-comment">// 50%占空比</span>
   <span class="code-comment">// 用DMA或中断递减计数，到0停止PWM</span>
-  g_pulse_remaining = count;
+  g_pulse_remain = count;
   HAL_TIM_PWM_Start(&amp;htim2, TIM_CHANNEL_1);
 }
 
 <span class="code-comment">/* 在定时器更新中断里递减，到0关PWM */</span>
 <span class="code-keyword">void</span> <span class="code-func">HAL_TIM_PeriodElapsedCallback</span>(TIM_HandleTypeDef *htim) {
-  <span class="code-keyword">if</span> (htim == &amp;htim2 &amp;&amp; g_pulse_remaining &gt; <span class="code-number">0</span>) {
-    <span class="code-keyword">if</span> (--g_pulse_remaining == <span class="code-number">0</span>)
+  <span class="code-keyword">if</span> (htim == &amp;htim2 &amp;&amp; g_pulse_remain &gt; <span class="code-number">0</span>) {
+    <span class="code-keyword">if</span> (--g_pulse_remain == <span class="code-number">0</span>)
       HAL_TIM_PWM_Stop(&amp;htim2, TIM_CHANNEL_1);
   }
 }</div>
@@ -3568,7 +3570,7 @@ HAL_TIM_PWM_Start(&amp;htim2, TIM_CHANNEL_1);
               <tr><td class="font-medium">极低 KV (&lt;100)</td><td>14+对</td><td>大扭矩直驱</td><td>直驱舵机、机器人关节</td></tr>
             </tbody>
           </table></div>
-          <div class="info-box info"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>换向频率别忘了除以极对数</strong>：极对数越多，同样机械转速下所需的电换向频率越高。例如 14 极对(7对)电机跑 1000RPM，换向频率 = 1000×7/60 ≈ 117Hz，MCU 中断和 PWM 必须跟得上。极对数也影响 <strong>FOC 的电角度 = 机械角度 × 极对数</strong>。</div></div>
+          <div class="info-box info"><svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><div><strong>换向频率别忘了除以极对数</strong>：极对数越多，同样机械转速下所需的电换向频率越高。例如 7 极对(14极)电机跑 1000RPM，换向频率 = 1000×7/60 ≈ 117Hz，MCU 中断和 PWM 必须跟得上。极对数也影响 <strong>FOC 的电角度 = 机械角度 × 极对数</strong>。</div></div>
         `},
         { title: '代码示例：霍尔信号读取与换向（纯C框架）', content: `
           <p class="text-gray-600 dark:text-gray-400 leading-relaxed mb-3">
@@ -4031,6 +4033,7 @@ GND  --> GND     (STM32与A4988必须共地!)</div>
 <span class="code-keyword">#define</span> PULSES_PER_REV  <span class="code-number">10000</span>   <span class="code-comment">// 电子齿轮比后每转脉冲数(按驱动器设置)</span>
 
 <span class="code-comment">// 方向控制GPIO(实战示例用HAL)</span>
+<span class="code-keyword">volatile int</span> g_pulse_remain = <span class="code-number">0</span>;   <span class="code-comment">// 剩余脉冲数(中断递减，必须volatile)</span>
 <span class="code-keyword">void</span> <span class="code-func">Servo_SetDir</span>(<span class="code-keyword">int</span> forward) {
   <span class="code-func">HAL_GPIO_WritePin</span>(DIR_GPIO_Port, DIR_Pin, forward ? <span class="code-func">GPIO_PIN_SET</span> : <span class="code-func">GPIO_PIN_RESET</span>);
 }
@@ -4682,7 +4685,7 @@ Servo_t joint_base, joint_arm, joint_hand;
           '用万用表测量一个旧电机的电阻、空载电流，估算其额定参数',
           '手转电机+示波器看反电动势波形，判断是有刷还是无刷',
         ],
-        links: ['beginner-em', 'beginner-params', 'beginner-classify'],
+        links: ['beginner-em', 'beginner-params', 'beginner-classify', 'brushed-dc', 'bldc', 'stepper'],
       },
       {
         title: '第二阶段：控制理论 + 单片机入门',
@@ -4714,7 +4717,7 @@ Servo_t joint_base, joint_arm, joint_hand;
           'FOC开环让电机平滑转→闭环Id=0→加力矩控制，逐级验证',
           '用串口输出Id/Iq波形，对照工程验证方法论的指标判定',
         ],
-        links: ['bldc-commutation', 'foc-impl', 'current-sense', 'engineering-validation'],
+        links: ['bldc-commutation', 'foc-impl', 'current-sense', 'engineering-validation', 'servo', 'hobby-servo'],
       },
       {
         title: '第四阶段：机器人与系统集成',
@@ -4723,14 +4726,15 @@ Servo_t joint_base, joint_arm, joint_hand;
           '运动学（正逆解）+ 轨迹规划',
           '多轴协调 + ROS/micro-ROS 桥接',
           '无感控制（SMO、HFI）',
+          '通讯总线（Modbus/CAN/EtherCAT）——多轴协调的命脉',
           '模型预测控制（MPC）/ 新能源汽车电驱',
         ],
         exercises: [
           '搭建2-3自由度机械臂，用逆运动学控制末端走直线',
-          'MCU做实时位置环 + 上位机Python做轨迹规划，串口通信',
+          'MCU做实时位置环 + 上位机Python做轨迹规划，串口/Modbus通信',
           '尝试无感启动：预定位→强拖→切SMO闭环',
         ],
-        links: ['kinematics', 'trajectory', 'mcu-ros', 'matlab-sim', 'advanced-sensorless'],
+        links: ['kinematics', 'trajectory', 's-curve', 'mcu-ros', 'matlab-sim', 'advanced-sensorless', 'advanced-comm', 'advanced-protection'],
       },
     ],
     books: [

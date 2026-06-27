@@ -1,5 +1,21 @@
 // ECharts 图表模块
 const Charts = {
+  // 活动动画定时器注册表：页面切换时统一清理，避免RAF/setInterval泄漏
+  _activeTimers: [],
+  // 注册一个活动定时器（RAF id 或 interval id），返回该id用于注销
+  _regTimer(id) { this._activeTimers.push(id); return id; },
+  // 清除某个已注册的定时器
+  _clearTimer(id) {
+    cancelAnimationFrame(id); clearInterval(id);
+    const i = this._activeTimers.indexOf(id);
+    if (i >= 0) this._activeTimers.splice(i, 1);
+  },
+  // 停止所有活动动画（页面切换前由 app.js 调用）
+  stopAll() {
+    this._activeTimers.forEach(id => { cancelAnimationFrame(id); clearInterval(id); });
+    this._activeTimers = [];
+  },
+
   renderKnowledgeGraph(containerId) {
     const container = document.getElementById(containerId);
     if (!container || typeof echarts === 'undefined') return;
@@ -75,8 +91,8 @@ const Charts = {
       }],
     });
 
-    // 响应式
-    window.addEventListener('resize', () => chart.resize());
+    // 响应式（dispose后getInstanceByDom返回undefined，安全跳过）
+    window.addEventListener('resize', () => echarts.getInstanceByDom(container)?.resize());
     return chart;
   },
 
@@ -107,7 +123,7 @@ const Charts = {
       }],
     });
 
-    window.addEventListener('resize', () => chart.resize());
+    window.addEventListener('resize', () => echarts.getInstanceByDom(container)?.resize());
     return chart;
   },
 
@@ -539,7 +555,7 @@ const Charts = {
       let autoDeg = 0;
       autoBtn.addEventListener('click', () => {
         if (autoRAF) {
-          cancelAnimationFrame(autoRAF); autoRAF = null;
+          Charts._clearTimer(autoRAF); autoRAF = null;
           autoBtn.textContent = '▶ 自动旋转';
           autoBtn.style.color = 'var(--text-secondary)';
           slider.disabled = false;
@@ -551,9 +567,9 @@ const Charts = {
             autoDeg = (autoDeg + 1.5) % 360;
             slider.value = autoDeg;
             render(autoDeg);
-            autoRAF = requestAnimationFrame(tick);
+            autoRAF = Charts._regTimer(requestAnimationFrame(tick));
           };
-          autoRAF = requestAnimationFrame(tick);
+          autoRAF = Charts._regTimer(requestAnimationFrame(tick));
         }
       });
       render(0);
@@ -607,15 +623,15 @@ const Charts = {
       const svg = el.querySelector('#bldc-svg');
       const stepLbl = el.querySelector('#bldc-step');
       const statusEl = el.querySelector('#bldc-status');
-      // 6步换向表：每步 {通电相: 进(+)/出(-), 转子目标角度}
-      // A上(0°) B右下(120°) C左下(240°)。转子N极指向"进相"与"出相"合成磁场方向
+      // 6步换向表：每步 {通电相: 进(+)/出(-), 转子目标角度(SVG顺时针旋转值)}
+      // A上 B右下 C左下。每步合成磁场旋转60°，转子N极跟随(每步转60°)
       const steps = [
-        { in: 'A', out: 'B', rotor: 330, desc: 'A进 B出：磁场指向A→B，转子N极转到60°反向' },
-        { in: 'A', out: 'C', rotor: 30,  desc: 'A进 C出：合成磁场转60°，转子跟进' },
-        { in: 'B', out: 'C', rotor: 90,  desc: 'B进 C出' },
-        { in: 'B', out: 'A', rotor: 150, desc: 'B进 A出' },
-        { in: 'C', out: 'A', rotor: 210, desc: 'C进 A出' },
-        { in: 'C', out: 'B', rotor: 270, desc: 'C进 B出：完成一圈，回到起点' },
+        { in: 'A', out: 'B', rotor: 330, desc: '第1步 A进→B出，合成磁场使转子N极指向上偏左，转子位于330°' },
+        { in: 'A', out: 'C', rotor: 30,  desc: '第2步 A进→C出，磁场转60°，转子跟进到30°' },
+        { in: 'B', out: 'C', rotor: 90,  desc: '第3步 B进→C出，转子到90°（正右）' },
+        { in: 'B', out: 'A', rotor: 150, desc: '第4步 B进→A出，转子到150°' },
+        { in: 'C', out: 'A', rotor: 210, desc: '第5步 C进→A出，转子到210°' },
+        { in: 'C', out: 'B', rotor: 270, desc: '第6步 C进→B出，转子到270°（正下），完成一圈360°' },
       ];
       let curStep = 0;
       let autoT = null;
@@ -651,10 +667,10 @@ const Charts = {
       el.querySelector('#bldc-next').onclick = () => { stopAuto(); next(); };
       el.querySelector('#bldc-prev').onclick = () => { stopAuto(); prev(); };
       const autoBtn = el.querySelector('#bldc-auto');
-      function stopAuto() { if (autoT) { clearInterval(autoT); autoT = null; autoBtn.textContent = '▶ 自动'; autoBtn.style.color = 'var(--text-secondary)'; } }
+      function stopAuto() { if (autoT) { Charts._clearTimer(autoT); autoT = null; autoBtn.textContent = '▶ 自动'; autoBtn.style.color = 'var(--text-secondary)'; } }
       autoBtn.onclick = () => {
         if (autoT) { stopAuto(); }
-        else { autoBtn.textContent = '⏸ 暂停'; autoBtn.style.color = 'var(--primary)'; next(); autoT = setInterval(next, 900); }
+        else { autoBtn.textContent = '⏸ 暂停'; autoBtn.style.color = 'var(--primary)'; next(); autoT = Charts._regTimer(setInterval(next, 900)); }
       };
       render(0);
     },
@@ -668,6 +684,7 @@ const Charts = {
           <label>Kd: <input type="range" id="pid-kd" min="0" max="2" step="0.05" value="0.5" style="width:110px;vertical-align:middle;accent-color:var(--primary)"><b id="pid-kd-v" style="color:#60a5fa;font-family:Consolas;margin-left:4px">0.50</b></label>
         </div>
         <div id="pid-chart" style="width:100%;height:300px"></div>
+        <div id="pid-metrics" style="display:flex;gap:18px;justify-content:center;flex-wrap:wrap;font-family:Consolas;font-size:13px;margin-top:8px"></div>
         <div style="text-align:center;color:var(--text-secondary);font-size:12px;margin-top:4px">拖动滑块看PID参数对阶跃响应的影响：Kp↑快但易超调 | Ki↑消稳态误差但增振荡 | Kd↑抑制超调但放大噪声</div>`;
       const chartEl = el.querySelector('#pid-chart');
       // 用ECharts画
@@ -704,11 +721,24 @@ const Charts = {
         const kp = parseFloat(sliders[0].value), ki = parseFloat(sliders[1].value), kd = parseFloat(sliders[2].value);
         vals[0].textContent = kp.toFixed(1); vals[1].textContent = ki.toFixed(2); vals[2].textContent = kd.toFixed(2);
         const { t, out } = sim(kp, ki, kd);
-        // 算性能指标
+        // NaN/Infinity 防护（极端参数下数值积分可能异常）
+        if (!out.every(v => Number.isFinite(v))) { if (chart) chart.clear(); return; }
+        // 性能指标
         const steady = out[out.length - 1];
-        let overshoot = 0, maxV = 0;
-        out.forEach(v => { if (v > maxV) maxV = v; });
-        overshoot = maxV > 1 ? ((maxV - 1) * 100).toFixed(0) : 0;
+        let maxV = 0; out.forEach(v => { if (v > maxV) maxV = v; });
+        const overshoot = maxV > 1 ? ((maxV - 1) * 100).toFixed(1) : '0';
+        const steadyErr = Math.abs(1 - steady) < 0.001 ? '0' : ((1 - steady) * 100).toFixed(1) + '%';  // 稳态误差
+        // 上升时间：首次到达90%设定值的时间
+        let riseIdx = out.findIndex(v => v >= 0.9);
+        const riseTime = riseIdx > 0 ? t[riseIdx].toFixed(2) + 's' : 'N/A';
+        // 峰值索引（findIndex 避免 indexOf 的浮点 === 问题）
+        const peakIdx = out.reduce((mi, v, i, a) => v > a[mi] ? i : mi, 0);
+        // 更新底部指标栏
+        const metricEl = el.querySelector('#pid-metrics');
+        if (metricEl) metricEl.innerHTML =
+          `<span style="color:#d4940a">超调: ${overshoot}%</span>` +
+          `<span style="color:#34d399">稳态误差: ${steadyErr}</span>` +
+          `<span style="color:#60a5fa">上升时间(90%): ${riseTime}</span>`;
         if (!chart) return;
         chart.setOption({
           animation: false,
@@ -719,7 +749,7 @@ const Charts = {
           series: [
             { name: '设定值', type: 'line', data: t.map(() => 1), lineStyle: { color: '#94a3b8', type: 'dashed', width: 1.5 }, symbol: 'none' },
             { name: '响应', type: 'line', data: out, lineStyle: { color: '#d4940a', width: 2.5 }, symbol: 'none', areaStyle: { color: 'rgba(212,148,10,0.08)' },
-              markPoint: { data: [{ name: '峰值', coord: [out.indexOf(maxV), maxV], label: { formatter: '超调' + overshoot + '%', fontSize: 10 } }] } }
+              markPoint: peakIdx > 0 && maxV > 1 ? { data: [{ name: '峰值', coord: [peakIdx, maxV], label: { formatter: '超调' + overshoot + '%', fontSize: 10 } }] } : undefined }
           ]
         });
       }

@@ -12,7 +12,7 @@ const Calculator = {
             <div class="calc-field">
               <label>${f.label}</label>
               <select id="calc-${calc.id}-${f.id}" onchange="Calculator.compute('${calc.id}')">
-                ${f.options.map(o => `<option value="${o}">${o}</option>`).join('')}
+                ${f.options.map(o => `<option value="${o}"${o === f.default ? ' selected' : ''}>${o}</option>`).join('')}
               </select>
             </div>
           ` : `
