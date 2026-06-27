@@ -3,3 +3,4 @@ error.log
 
 # 本地工具配置（不应进仓库）
 .claude/
+nul
